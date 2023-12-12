@@ -1,15 +1,9 @@
 import os
-from glob import glob
-
 import torch
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm.auto import tqdm
 
 from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
 from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
-from .marigold.util.seed_all import seed_all
-from .marigold.util.batchsize import find_batch_size
 
 class MarigoldDepthEstimation:
     @classmethod
@@ -23,8 +17,8 @@ class MarigoldDepthEstimation:
             },
             }
     
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES =("image",)
+    RETURN_TYPES = ("IMAGE","IMAGE",)
+    RETURN_NAMES =("ensembled_image","depth_images",)
     FUNCTION = "process"
 
     CATEGORY = "Marigold"
@@ -33,8 +27,14 @@ class MarigoldDepthEstimation:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
         image = image.permute(0, 3, 1, 2).to(device)
+
+        #load the diffusers model
         script_directory = os.path.dirname(os.path.abspath(__file__))
         checkpoint_path = os.path.join(script_directory, "checkpoints/Marigold_v1_merged")
+        # Check if the first path exists
+        if not os.path.exists(checkpoint_path):
+            # If it doesn't exist, construct the alternative path
+            checkpoint_path = os.path.join(script_directory, "checkpoints/Marigold")
 
         self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False)
         self.marigold_pipeline = self.marigold_pipeline.to(device)
@@ -50,7 +50,7 @@ class MarigoldDepthEstimation:
                 depth_map = (depth_map + 1.0) / 2.0
                 depth_maps.append(depth_map)
         
-        depth_predictions = torch.concat(depth_maps, axis=0).squeeze()
+        depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
         
         torch.cuda.empty_cache()  # clear vram cache for ensembling
 
@@ -77,7 +77,7 @@ class MarigoldDepthEstimation:
        
         if invert:
             depth_map = 1 - depth_map
-        return (depth_map, )
+        return (depth_map, depth_predictions,)
 
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,

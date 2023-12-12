@@ -9,5 +9,6 @@ Either extract this to the checkpoints folder under the custom node folder:
 https://share.phys.ethz.ch/~pf/bingkedata/marigold/Marigold_v1_merged.tar
 
 Or get it from HF: https://huggingface.co/Bingxin/Marigold/tree/main
+in the checkpoints folder (create it first): git pull https://huggingface.co/Bingxin/Marigold/
 
-folder structure currently has to be checkpoints/Marigold_v1_merged/
+folder structure currently has to be checkpoints/Marigold_v1_merged/ or checkpoints/Marigold/

@@ -1,4 +1,4 @@
-###Marigold depth estimation in ComfyUI
+### Marigold depth estimation in ComfyUI
 
 This is a wrapper node for Marigold depth estimation:
 https://github.com/prs-eth/Marigold

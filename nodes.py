@@ -39,7 +39,7 @@ class MarigoldDepthEstimation:
         batch_size = image.shape[0]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
-        image = image.permute(0, 3, 1, 2).to(device)
+        image = image.permute(0, 3, 1, 2).to(device).to(dtype=torch.float16)
 
         #load the diffusers model
         script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +50,8 @@ class MarigoldDepthEstimation:
             checkpoint_path = os.path.join(script_directory, "checkpoints/Marigold")
 
         self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False)
-        self.marigold_pipeline = self.marigold_pipeline.to(device)
+        self.marigold_pipeline = self.marigold_pipeline.to(device).half()
+  
         self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
         
         out = []
@@ -68,13 +69,6 @@ class MarigoldDepthEstimation:
             
             torch.cuda.empty_cache()  # clear vram cache for ensembling
 
-            #ensemble parameters
-            #regularizer_strength = 0.02
-            #max_iter = 5
-            #tol = 1e-3
-            #reduction_method = "median"
-            merging_max_res = None
-
             # Test-time ensembling
             if n_repeat > 1:
                 depth_map, pred_uncert = ensemble_depths(
@@ -83,7 +77,7 @@ class MarigoldDepthEstimation:
                     max_iter=max_iter,
                     tol=tol,
                     reduction=reduction_method,
-                    max_res=merging_max_res,
+                    max_res=None,
                     device=device,
                 )
             depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)

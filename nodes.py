@@ -5,6 +5,7 @@ from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
 from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
 
+import comfy.utils
 class MarigoldDepthEstimation:
     @classmethod
     def INPUT_TYPES(s):
@@ -53,18 +54,20 @@ class MarigoldDepthEstimation:
         self.marigold_pipeline = self.marigold_pipeline.to(device).half()
   
         self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
-        
+
+        pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
+
         out = []
         for i in range(batch_size):
             depth_maps = []
 
             with torch.no_grad():
                 for _ in range(n_repeat):
-                    depth_map = self.marigold_pipeline(image[i].unsqueeze(0), num_inference_steps=denoise_steps, show_pbar=True)  # Process the image tensor to get the depth map
+                    depth_map = self.marigold_pipeline(image[i].unsqueeze(0), num_inference_steps=denoise_steps, show_pbar=False)  # Process the image tensor to get the depth map
                     depth_map = torch.clip(depth_map, -1.0, 1.0)
                     depth_map = (depth_map + 1.0) / 2.0
                     depth_maps.append(depth_map)
-            
+                    pbar.update(1)
             depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
             
             torch.cuda.empty_cache()  # clear vram cache for ensembling
@@ -82,6 +85,7 @@ class MarigoldDepthEstimation:
                 )
             depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
             out.append(depth_map)
+            
 
         if invert:
             outstack = 1.0 - torch.stack(out, dim=0)

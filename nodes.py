@@ -154,6 +154,17 @@ class ColorizeDepthmap:
                 'cividis',
                 'twilight',
                 'rainbow',
+                'gist_rainbow',
+                'gist_ncar',
+                'gist_earth',
+                'turbo',
+                'jet',
+                'afmhot',
+                'copper',
+                'seismic',
+                'hsv',
+                'brg',
+
             ], {
                "default": 'Spectral'
             }),

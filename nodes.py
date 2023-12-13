@@ -170,9 +170,7 @@ class ColorizeDepthmap:
     def color(self, image, colorize_method):
         colored_images = []
         for i in range(image.shape[0]):  # Iterate over the batch dimension
-            print(image[i].shape)
             depth_map = image[i].squeeze().permute(2, 0, 1)
-            print(depth_map.shape)
             depth_map = depth_map[0]
             depth_map = colorizedepth(depth_map, colorize_method)
             depth_map = torch.from_numpy(depth_map) / 255

@@ -1,4 +1,4 @@
-### Marigold depth estimation in ComfyUI
+# Marigold depth estimation in ComfyUI
 
 ![image](https://github.com/kijai/ComfyUI-Marigold/assets/40791699/370345c3-6ff0-4251-acf4-2d6ba7f55213)
 
@@ -18,7 +18,7 @@ regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings f
 
 It can pretty memory hungry, and slow, the original local example uses 768p as max resolution (unsure of the hugginface demo)
 
-#Installing:
+## Installing:
 Recommended way: 
 
 Use the ComfyUI manager (search for "marigold")

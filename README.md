@@ -34,6 +34,6 @@ Currently using the same diffusers pipeline as in the original implementation, s
 
 https://share.phys.ethz.ch/~pf/bingkedata/marigold/Marigold_v1_merged.tar
 
-Either extract this archive, or do `git pull https://huggingface.co/Bingxin/Marigold/` in either of these folders:
+Either extract this archive, or do `git clone https://huggingface.co/Bingxin/Marigold/` in either of these folders:
 
 `ComfyUI\custom_nodes\ComfyUI-Marigold\checkpoints`  or `ComfyUI\models\diffusers`

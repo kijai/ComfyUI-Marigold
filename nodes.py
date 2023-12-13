@@ -42,22 +42,7 @@ class MarigoldDepthEstimation:
             
             "invert": ("BOOLEAN", {"default": True}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
-            "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),
-            "colorize": ("BOOLEAN", {"default": False}),
-            "colorize_method": (
-            [   
-                'Spectral',
-                'terrain', 
-                'viridis',
-                'plasma',
-                'inferno',
-                'magma',
-                'cividis',
-                'twilight',
-                'rainbow',
-            ], {
-               "default": 'Spectral'
-            }),
+            "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),           
             },
             
             }
@@ -68,7 +53,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, colorize, colorize_method):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size):
         batch_size = image.shape[0]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
@@ -139,11 +124,8 @@ class MarigoldDepthEstimation:
                         max_res=None,
                         device=device,
                     )
-                if colorize:
-                    depth_map = colorizedepth(depth_map, colorize_method)
-                    depth_map = torch.from_numpy(depth_map) / 255
-                else:
-                    depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
+                
+                depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
                 out.append(depth_map)
 
         if invert:
@@ -156,9 +138,57 @@ class MarigoldDepthEstimation:
             torch.cuda.ipc_collect()
         return (outstack,)
 
+class ColorizeDepthmap:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {  
+            "image": ("IMAGE", ),
+            "colorize_method": (
+            [   
+                'Spectral',
+                'terrain', 
+                'viridis',
+                'plasma',
+                'inferno',
+                'magma',
+                'cividis',
+                'twilight',
+                'rainbow',
+            ], {
+               "default": 'Spectral'
+            }),
+            },
+            
+            }
+    
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES =("image",)
+    FUNCTION = "color"
+
+    CATEGORY = "Marigold"
+
+    def color(self, image, colorize_method):
+        colored_images = []
+        for i in range(image.shape[0]):  # Iterate over the batch dimension
+            print(image[i].shape)
+            depth_map = image[i].squeeze().permute(2, 0, 1)
+            print(depth_map.shape)
+            depth_map = depth_map[0]
+            depth_map = colorizedepth(depth_map, colorize_method)
+            depth_map = torch.from_numpy(depth_map) / 255
+            depth_map = depth_map.unsqueeze(0)
+            colored_images.append(depth_map)
+        
+        # Stack the list of tensors along a new dimension
+        colored_images = torch.cat(colored_images, dim=0)
+        return (colored_images,)
+
+
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,
+    "ColorizeDepthmap": ColorizeDepthmap,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MarigoldDepthEstimation": "MarigoldDepthEstimation",
+    "ColorizeDepthmap": "ColorizeDepthmap",
 }

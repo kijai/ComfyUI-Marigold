@@ -18,13 +18,22 @@ regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings f
 
 It can pretty memory hungry, and slow, the original local example uses 768p as max resolution (unsure of the hugginface demo)
 
+#Installing:
+Recommended way: 
+
+Use the ComfyUI manager (search for "marigold")
+
+Manual install:
+
+Clone this repo to `ComfyUI/custom_nodes`
+Install requirements: `pip install -r requirements.txt`
+
+Get the model:
+
 Currently using the same diffusers pipeline as in the original implementation, so in addition to the custom node, you need the model in diffusers format:
 
-Either extract this to the checkpoints folder under the custom node folder:
 https://share.phys.ethz.ch/~pf/bingkedata/marigold/Marigold_v1_merged.tar
 
-Or get it from HF: https://huggingface.co/Bingxin/Marigold/tree/main
-in the `ComfyUI\custom_nodes\ComfyUI-Marigold\checkpoints` folder (create it first): git pull https://huggingface.co/Bingxin/Marigold/
+Either extract this archive, or do `git pull https://huggingface.co/Bingxin/Marigold/` in either of these folders:
 
-alternatively `ComfyUI\models\diffusers` also works
-
+`ComfyUI\custom_nodes\ComfyUI-Marigold\checkpoints`  or `ComfyUI\models\diffusers`

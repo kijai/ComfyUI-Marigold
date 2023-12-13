@@ -28,6 +28,7 @@ class MarigoldDepthEstimation:
             
             "invert": ("BOOLEAN", {"default": True}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),
             },
             
             }
@@ -38,7 +39,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size):
         batch_size = image.shape[0]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
@@ -70,34 +71,47 @@ class MarigoldDepthEstimation:
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
 
         out = []
-        for i in range(batch_size):
-            depth_maps = []
+        # Set the number of images to process in a batch
+        batch_process_size = n_repeat_batch_size 
 
-            with torch.no_grad():
-                for _ in range(n_repeat):
-                    depth_map = self.marigold_pipeline(image[i].unsqueeze(0), num_inference_steps=denoise_steps, show_pbar=False)  # Process the image tensor to get the depth map
-                    depth_map = torch.clip(depth_map, -1.0, 1.0)
-                    depth_map = (depth_map + 1.0) / 2.0
-                    depth_maps.append(depth_map)
-                    pbar.update(1)
-            depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
-            
-            torch.cuda.empty_cache()  # clear vram cache for ensembling
+        with torch.no_grad():
+            for i in range(batch_size):
+                # Duplicate the current image n_repeat times
+                duplicated_batch = image[i].unsqueeze(0).repeat(n_repeat, 1, 1, 1)
+                
+                # Process the duplicated batch in sub-batches
+                depth_maps = []
+                for j in range(0, n_repeat, batch_process_size):
+                    # Get the current sub-batch
+                    sub_batch = duplicated_batch[j:j + batch_process_size]
+                    
+                    # Process the sub-batch
+                    depth_maps_sub_batch = self.marigold_pipeline(sub_batch, num_inference_steps=denoise_steps, show_pbar=False)
+                    
+                    # Process each depth map in the sub-batch if necessary
+                    for depth_map in depth_maps_sub_batch:
+                        depth_map = torch.clip(depth_map, -1.0, 1.0)
+                        depth_map = (depth_map + 1.0) / 2.0
+                        depth_maps.append(depth_map)
+                        pbar.update(1)
+                
+                depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
+                
+                torch.cuda.empty_cache()  # clear vram cache for ensembling
 
-            # Test-time ensembling
-            if n_repeat > 1:
-                depth_map, pred_uncert = ensemble_depths(
-                    depth_predictions,
-                    regularizer_strength=regularizer_strength,
-                    max_iter=max_iter,
-                    tol=tol,
-                    reduction=reduction_method,
-                    max_res=None,
-                    device=device,
-                )
-            depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
-            out.append(depth_map)
-            
+                # Test-time ensembling
+                if n_repeat > 1:
+                    depth_map, pred_uncert = ensemble_depths(
+                        depth_predictions,
+                        regularizer_strength=regularizer_strength,
+                        max_iter=max_iter,
+                        tol=tol,
+                        reduction=reduction_method,
+                        max_res=None,
+                        device=device,
+                    )
+                depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
+                out.append(depth_map)
 
         if invert:
             outstack = 1.0 - torch.stack(out, dim=0)

@@ -10,13 +10,16 @@ What I know of the parameters so far:
 
 `denoise_steps`: steps per depth map, increase for accuracy in exchange of processing time
 
-`n_iters`: amount of iterations to be ensembled into single depth map, increase for accuracy in exchange of processing time
+`n_repeat`: amount of iterations to be ensembled into single depth map, increase for accuracy in exchange of processing time
+
+`n_repeat_batch_size`: how many of the n_repeats are processed as a batch, if you have the VRAM this can match the n_repeats for faster processing
 
 `invert`: marigold by default produces depth map where black is front, for controlnets etc. we want the opposite
 
 regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings for the ensembling process, don't fully know how to use them yet.
 
-It can pretty memory hungry, and slow, the original local example uses 768p as max resolution (unsure of the hugginface demo)
+It can pretty memory hungry, and slow, the original local example uses 768p as max resolution (unsure of the hugginface demo).
+After some optimizations I've been able to do 2048x2048 without any downscaling with 20GB VRAM.
 
 ## Installing:
 Recommended way: 

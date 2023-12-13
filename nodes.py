@@ -13,7 +13,7 @@ class MarigoldDepthEstimation:
             "image": ("IMAGE", ),
             "seed": ("INT", {"default": 123,"min": 0, "max": 0xffffffffffffffff, "step": 1}),
             "denoise_steps": ("INT", {"default": 10, "min": 1, "max": 4096, "step": 1}),
-            "n_repeat": ("INT", {"default": 2, "min": 2, "max": 4096, "step": 1}),
+            "n_repeat": ("INT", {"default": 10, "min": 2, "max": 4096, "step": 1}),
             "regularizer_strength": ("FLOAT", {"default": 0.02, "min": 0.001, "max": 4096, "step": 0.001}),
             "reduction_method": (
             [   
@@ -44,11 +44,22 @@ class MarigoldDepthEstimation:
 
         #load the diffusers model
         script_directory = os.path.dirname(os.path.abspath(__file__))
-        checkpoint_path = os.path.join(script_directory, "checkpoints/Marigold_v1_merged")
-        # Check if the first path exists
-        if not os.path.exists(checkpoint_path):
-            # If it doesn't exist, construct the alternative path
-            checkpoint_path = os.path.join(script_directory, "checkpoints/Marigold")
+        folders_to_check = [
+            "checkpoints/Marigold_v1_merged",
+            "checkpoints/Marigold",
+            "../../models/diffusers/Marigold_v1_merged",
+            "../../models/diffusers/Marigold",
+        ]
+
+        checkpoint_path = None
+        for folder in folders_to_check:
+            potential_path = os.path.join(script_directory, folder)
+            if os.path.exists(potential_path):
+                checkpoint_path = potential_path
+                break
+
+        if checkpoint_path is None:
+            raise FileNotFoundError("No checkpoint directory found.")
 
         self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False)
         self.marigold_pipeline = self.marigold_pipeline.to(device).half()

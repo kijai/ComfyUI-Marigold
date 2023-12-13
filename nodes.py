@@ -3,9 +3,10 @@ import torch
 
 from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
-from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
+#from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
 
 import comfy.utils
+
 class MarigoldDepthEstimation:
     @classmethod
     def INPUT_TYPES(s):
@@ -26,6 +27,7 @@ class MarigoldDepthEstimation:
             "tol": ("FLOAT", {"default": 1e-3, "min": 1e-6, "max": 1e-1, "step": 1e-6}),
             
             "invert": ("BOOLEAN", {"default": True}),
+            "keep_model_loaded": ("BOOLEAN", {"default": True}),
             },
             
             }
@@ -36,7 +38,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded):
         batch_size = image.shape[0]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
@@ -63,7 +65,6 @@ class MarigoldDepthEstimation:
 
         self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False)
         self.marigold_pipeline = self.marigold_pipeline.to(device).half()
-  
         self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
 
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
@@ -102,7 +103,10 @@ class MarigoldDepthEstimation:
             outstack = 1.0 - torch.stack(out, dim=0)
         else:
             outstack = torch.stack(out, dim=0)
-        
+        if not keep_model_loaded:
+            self.marigold_pipeline = None
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
         return (outstack,)
 
 NODE_CLASS_MAPPINGS = {

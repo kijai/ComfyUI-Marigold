@@ -192,12 +192,85 @@ class ColorizeDepthmap:
         colored_images = torch.cat(colored_images, dim=0)
         return (colored_images,)
 
+import OpenEXR
+import Imath
+import folder_paths
+import re
+class SaveImageOpenEXR:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {  
+            "images": ("IMAGE", ),
+            "filename_prefix": ("STRING", {"default": "ComfyUI_EXR"})
+            },
+            
+            }
+    
+    RETURN_TYPES = ()
+    FUNCTION = "saveexr"
+    OUTPUT_NODE = True
+    CATEGORY = "Marigold"
 
+    def saveexr(self, images, filename_prefix):
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+        results = list()
+        def file_counter():
+            max_counter = 0
+            # Loop through the existing files
+            for existing_file in os.listdir(full_output_folder):
+                # Check if the file matches the expected format
+                match = re.fullmatch(f"{filename}_(\d+)_?\.[a-zA-Z0-9]+", existing_file)
+                if match:
+                    # Extract the numeric portion of the filename
+                    file_counter = int(match.group(1))
+                    # Update the maximum counter value if necessary
+                    if file_counter > max_counter:
+                        max_counter = file_counter
+            return max_counter
+        
+        for image in images:
+            # Ensure the tensor is on the CPU and convert it to a numpy array
+            image_np = image.cpu().numpy()
+            #image_np = image_np[0]
+            image_np = image_np.astype(np.float32)
+
+            # Assuming the image is in the format of floating point 32 bit (change PIXEL_TYPE if not)
+            PIXEL_TYPE = Imath.PixelType(Imath.PixelType.FLOAT)
+            height, width, channels = image_np.shape
+
+            # Prepare the EXR header
+            header = OpenEXR.Header(width, height)
+            half_chan = Imath.Channel(PIXEL_TYPE)
+            header['channels'] = dict([(c, half_chan) for c in "RGB"])
+
+            # Split the channels for OpenEXR
+            R = image_np[:, :, 0].tostring()
+            G = image_np[:, :, 1].tostring()
+            B = image_np[:, :, 2].tostring()
+
+            # Increment the counter by 1 to get the next available value
+            counter = file_counter() + 1
+            file = f"{filename}_{counter:05}.exr"
+
+            # Write the EXR file
+            exr_file = OpenEXR.OutputFile(os.path.join(full_output_folder, file), header)
+            exr_file.writePixels({'R': R, 'G': G, 'B': B})
+            exr_file.close()
+
+        return ()
+    
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,
     "ColorizeDepthmap": ColorizeDepthmap,
+    "SaveImageOpenEXR": SaveImageOpenEXR,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MarigoldDepthEstimation": "MarigoldDepthEstimation",
     "ColorizeDepthmap": "ColorizeDepthmap",
+    "SaveImageOpenEXR": "SaveImageOpenEXR",
 }

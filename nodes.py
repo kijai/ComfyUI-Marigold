@@ -1,11 +1,25 @@
 import os
 import torch
+import numpy as np
 
 from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
-#from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
+from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
 
 import comfy.utils
+
+def colorizedepth(depth_map, colorize_method):
+    depth_map = depth_map.cpu().numpy()
+    percentile = 0.03
+    min_depth_pct = np.percentile(depth_map, percentile)
+    max_depth_pct = np.percentile(depth_map, 100 - percentile)
+    
+    depth_colored = colorize_depth_maps(
+        depth_map, min_depth_pct, max_depth_pct, cmap=colorize_method
+    ).squeeze()  # [3, H, W], value in (0, 1)
+    depth_colored = (depth_colored * 255).astype(np.uint8)
+    depth_colored_hwc = chw2hwc(depth_colored)
+    return depth_colored_hwc
 
 class MarigoldDepthEstimation:
     @classmethod
@@ -29,6 +43,21 @@ class MarigoldDepthEstimation:
             "invert": ("BOOLEAN", {"default": True}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
             "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),
+            "colorize": ("BOOLEAN", {"default": False}),
+            "colorize_method": (
+            [   
+                'Spectral',
+                'terrain', 
+                'viridis',
+                'plasma',
+                'inferno',
+                'magma',
+                'cividis',
+                'twilight',
+                'rainbow',
+            ], {
+               "default": 'Spectral'
+            }),
             },
             
             }
@@ -39,7 +68,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, colorize, colorize_method):
         batch_size = image.shape[0]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
@@ -110,13 +139,17 @@ class MarigoldDepthEstimation:
                         max_res=None,
                         device=device,
                     )
-                depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
+                if colorize:
+                    depth_map = colorizedepth(depth_map, colorize_method)
+                    depth_map = torch.from_numpy(depth_map) / 255
+                else:
+                    depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
                 out.append(depth_map)
 
         if invert:
-            outstack = 1.0 - torch.stack(out, dim=0)
+            outstack = 1.0 - torch.stack(out, dim=0).cpu()
         else:
-            outstack = torch.stack(out, dim=0)
+            outstack = torch.stack(out, dim=0).cpu()
         if not keep_model_loaded:
             self.marigold_pipeline = None
             torch.cuda.empty_cache()

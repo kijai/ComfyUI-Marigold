@@ -1,7 +1,6 @@
 # Marigold depth estimation in ComfyUI
 
-![image](https://github.com/kijai/ComfyUI-Marigold/assets/40791699/370345c3-6ff0-4251-acf4-2d6ba7f55213)
-
+![image](https://github.com/kijai/ComfyUI-Marigold/assets/40791699/266f6eb4-ec9c-4c25-bdb9-4c1da97bd9be)
 
 This is a wrapper node for Marigold depth estimation:
 https://github.com/prs-eth/Marigold

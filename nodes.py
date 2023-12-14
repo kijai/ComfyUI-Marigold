@@ -192,10 +192,8 @@ class ColorizeDepthmap:
         colored_images = torch.cat(colored_images, dim=0)
         return (colored_images,)
 
-import OpenEXR
-import Imath
 import folder_paths
-import re
+
 class SaveImageOpenEXR:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -216,6 +214,9 @@ class SaveImageOpenEXR:
     CATEGORY = "Marigold"
 
     def saveexr(self, images, filename_prefix):
+        import OpenEXR
+        import Imath 
+        import re
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()

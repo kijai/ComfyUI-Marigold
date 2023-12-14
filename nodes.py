@@ -45,7 +45,8 @@ class MarigoldDepthEstimation:
             
             "invert": ("BOOLEAN", {"default": True}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
-            "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),           
+            "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),
+            "use_fp16": ("BOOLEAN", {"default": True}),
             },
             
             }
@@ -56,11 +57,13 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16):
         batch_size = image.shape[0]
+        precision = torch.float16 if use_fp16 else torch.float32
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.manual_seed(seed)
-        image = image.permute(0, 3, 1, 2).to(device).to(dtype=torch.float16)
+
+        image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
 
         #load the diffusers model
         
@@ -82,7 +85,7 @@ class MarigoldDepthEstimation:
             raise FileNotFoundError("No checkpoint directory found.")
 
         self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
-        self.marigold_pipeline = self.marigold_pipeline.to(device).half()
+        self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
         self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
 
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)

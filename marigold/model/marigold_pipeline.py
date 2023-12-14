@@ -58,7 +58,7 @@ class MarigoldPipeline(nn.Module):
         # Denoising UNet
         self.unet: UNet2DConditionModel = UNet2DConditionModel.from_pretrained(
             unet_pretrained_path["path"], subfolder=unet_pretrained_path["subfolder"]
-        ).half()
+        )
         logging.info(f"pretrained UNet loaded from: {unet_pretrained_path}")
         if 8 != self.unet.config["in_channels"]:
             self._replace_unet_conv_in()
@@ -73,7 +73,6 @@ class MarigoldPipeline(nn.Module):
             pretrained_path=rgb_encoder_pretrained_path["path"],
             subfolder=rgb_encoder_pretrained_path["subfolder"],
         )
-        self.rgb_encoder.half()
         logging.info(
             f"pretrained RGBEncoder loaded from: {rgb_encoder_pretrained_path}"
         )
@@ -135,7 +134,7 @@ class MarigoldPipeline(nn.Module):
             with torch.no_grad():
                 self.empty_text_embed = self._encode_text(
                     "", tokenizer, text_encoder
-                ).detach()  # [1, 2, 1024]
+                ).detach()#.to(dtype=precision)  # [1, 2, 1024]
         else:
             self.empty_text_embed = empty_text_embed
 
@@ -197,7 +196,7 @@ class MarigoldPipeline(nn.Module):
         return_depth_latent=False,
     ):
         device = rgb_in.device
-            
+        precision = self.unet.dtype    
         # Set timesteps
         self.noise_scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.noise_scheduler.timesteps  # [T]
@@ -207,19 +206,19 @@ class MarigoldPipeline(nn.Module):
 
         # Initial depth map (noise)
         if init_depth_latent is not None:
-            init_depth_latent = init_depth_latent.to(dtype=torch.float16)
+            init_depth_latent = init_depth_latent.to(dtype=precision)
             assert (
                 init_depth_latent.shape == rgb_latent.shape
             ), "initial depth latent should be the size of [B, 4, H/8, W/8]"
             depth_latent = init_depth_latent
-            depth_latent = torch.randn(rgb_latent.shape, device=device, dtype=torch.float16)
+            depth_latent = torch.randn(rgb_latent.shape, device=device, dtype=precision)
         else:
             depth_latent = torch.randn(rgb_latent.shape, device=device)  # [B, 4, h, w]
 
         # Expand text embeding for batch
         batch_empty_text_embed = self.empty_text_embed.repeat(
             (rgb_latent.shape[0], 1, 1)
-        ).to(device=device, dtype=torch.float16)  # [B, 2, 1024]
+        ).to(device=device, dtype=precision)  # [B, 2, 1024]
 
         # Export intermediate denoising steps
         if num_output_inter_results > 0:
@@ -247,7 +246,7 @@ class MarigoldPipeline(nn.Module):
             unet_input = torch.cat(
                 [rgb_latent, depth_latent], dim=1
             )  # this order is important
-            unet_input = unet_input.to(dtype=torch.float16)
+            unet_input = unet_input.to(dtype=precision)
             # predict the noise residual
             noise_pred = self.unet(
                 unet_input, t, encoder_hidden_states=batch_empty_text_embed
@@ -256,11 +255,12 @@ class MarigoldPipeline(nn.Module):
             # compute the previous noisy sample x_t -> x_t-1
             depth_latent = self.noise_scheduler.step(
                 noise_pred, t, depth_latent
-            ).prev_sample
+            ).prev_sample.to(dtype=precision)
             
 
             if num_output_inter_results > 0 and t in steps_to_output:
                 depth_latent_ls.append(depth_latent.detach().clone())
+                #depth_latent_ls = depth_latent_ls.to(dtype=precision)
                 inter_steps.append(t - 1)
 
         # Decode depth latent
@@ -289,7 +289,7 @@ class MarigoldPipeline(nn.Module):
         return depth_latent
 
     def decode_depth(self, depth_latent):
-        depth_latent = depth_latent.to(dtype=torch.float16)
+        #depth_latent = depth_latent.to(dtype=torch.float16)
         depth_latent = depth_latent / self.depth_latent_scale_factor
         depth = self.depth_ae.decode(depth_latent)  # [B, 1, H, W]
         return depth 
@@ -305,4 +305,4 @@ class MarigoldPipeline(nn.Module):
         )
         text_input_ids = text_inputs.input_ids.to(text_encoder.device)
         text_embed = text_encoder(text_input_ids)[0]
-        return text_embed.to(dtype=torch.float16)
+        return text_embed

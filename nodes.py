@@ -74,19 +74,21 @@ class MarigoldDepthEstimation:
             "../../models/diffusers/Marigold",
         ]
 
-        checkpoint_path = None
-        for folder in folders_to_check:
-            potential_path = os.path.join(script_directory, folder)
-            if os.path.exists(potential_path):
-                checkpoint_path = potential_path
-                break
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None:
+            # Load the model only if it hasn't been loaded before
+            checkpoint_path = None
+            for folder in folders_to_check:
+                potential_path = os.path.join(script_directory, folder)
+                if os.path.exists(potential_path):
+                    checkpoint_path = potential_path
+                    break
 
-        if checkpoint_path is None:
-            raise FileNotFoundError("No checkpoint directory found.")
+            if checkpoint_path is None:
+                raise FileNotFoundError("No checkpoint directory found.")
 
-        self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
-        self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
-        self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
+            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
+            self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
+            self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
 
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
 
@@ -116,7 +118,7 @@ class MarigoldDepthEstimation:
                         pbar.update(1)
                 
                 depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
-                
+                del duplicated_batch, depth_maps_sub_batch
                 torch.cuda.empty_cache()  # clear vram cache for ensembling
 
                 # Test-time ensembling
@@ -133,6 +135,7 @@ class MarigoldDepthEstimation:
                 
                 depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
                 out.append(depth_map)
+                del depth_map, depth_predictions
 
         if invert:
             outstack = 1.0 - torch.stack(out, dim=0).cpu()

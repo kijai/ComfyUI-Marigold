@@ -266,14 +266,39 @@ class SaveImageOpenEXR:
             exr_file.close()
 
         return ()
+
+class RemapDepth:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { 
+            "image": ("IMAGE",),
+            "min": ("FLOAT", {"default": 0.0,"min": -10.0, "max": 1.0, "step": 0.01}),
+            "max": ("FLOAT", {"default": 1.0,"min": 0.0, "max": 10.0, "step": 0.01}),
+            "clamp": ("BOOLEAN", {"default": True}),
+            },
+            }
     
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "remap"
+
+    CATEGORY = "Marigold"
+        
+    def remap(self, image, min, max, clamp):
+        
+        image = min + image * (max - min)
+        if clamp:
+            image = torch.clamp(image, min=0.0, max=1.0)
+        return (image, )
+
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,
     "ColorizeDepthmap": ColorizeDepthmap,
     "SaveImageOpenEXR": SaveImageOpenEXR,
+    "RemapDepth": RemapDepth
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MarigoldDepthEstimation": "MarigoldDepthEstimation",
     "ColorizeDepthmap": "ColorizeDepthmap",
     "SaveImageOpenEXR": "SaveImageOpenEXR",
+    "RemapDepth": "RemapDepth"
 }

@@ -5,6 +5,9 @@
 This is a wrapper node for Marigold depth estimation:
 https://github.com/prs-eth/Marigold
 
+Join us at the [Banodoco Discord](https://discord.gg/xAkA6NTyA3) for discussion on the use and node development:
+https://discord.com/channels/1076117621407223829/1184863853096484865
+
 What I know of the parameters so far:
 
 `denoise_steps`: steps per depth map, increase for accuracy in exchange of processing time

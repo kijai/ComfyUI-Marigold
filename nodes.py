@@ -21,7 +21,8 @@ def colorizedepth(depth_map, colorize_method):
     depth_colored_hwc = chw2hwc(depth_colored)
     return depth_colored_hwc
 
-empty_text_embed = torch.load(os.path.join(__file__, '..', "empty_text_embed.pt"), map_location="cpu")
+script_directory = os.path.dirname(os.path.abspath(__file__))
+empty_text_embed = torch.load(os.path.join(script_directory, "empty_text_embed.pt"), map_location="cpu")
 
 class MarigoldDepthEstimation:
     @classmethod
@@ -62,7 +63,7 @@ class MarigoldDepthEstimation:
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=torch.float16)
 
         #load the diffusers model
-        script_directory = os.path.dirname(os.path.abspath(__file__))
+        
         folders_to_check = [
             "checkpoints/Marigold_v1_merged",
             "checkpoints/Marigold",

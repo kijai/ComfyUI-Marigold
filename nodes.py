@@ -78,7 +78,8 @@ class MarigoldDepthEstimation:
         if checkpoint_path is None:
             raise FileNotFoundError("No checkpoint directory found.")
 
-        self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False)
+        empty_text_embed = torch.load("empty_text_embed.pt", map_location="cpu")
+        self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
         self.marigold_pipeline = self.marigold_pipeline.to(device).half()
         self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
 

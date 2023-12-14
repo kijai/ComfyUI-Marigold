@@ -2,6 +2,8 @@
 
 ![image](https://github.com/kijai/ComfyUI-Marigold/assets/40791699/266f6eb4-ec9c-4c25-bdb9-4c1da97bd9be)
 
+https://github.com/kijai/ComfyUI-Marigold/assets/40791699/0b39fece-592e-4302-b9eb-16fa979d4365
+
 This is a wrapper node for Marigold depth estimation:
 https://github.com/prs-eth/Marigold
 

@@ -21,7 +21,7 @@ def colorizedepth(depth_map, colorize_method):
     depth_colored_hwc = chw2hwc(depth_colored)
     return depth_colored_hwc
 
-empty_text_embed = torch.load("empty_text_embed.pt", map_location="cpu")
+empty_text_embed = torch.load(os.path.join(__file__, '..', "empty_text_embed.pt"), map_location="cpu")
 
 class MarigoldDepthEstimation:
     @classmethod

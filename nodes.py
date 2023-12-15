@@ -205,6 +205,23 @@ import folder_paths
 
 class SaveImageOpenEXR:
     def __init__(self):
+        try:
+            import OpenEXR
+            import Imath
+            self.OpenEXR = OpenEXR
+            self.Imath = Imath
+            self.use_openexr = True
+        except ImportError:
+            print("No OpenEXR module found, trying OpenCV...")
+            self.use_openexr = False
+            try:
+                os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+                import cv2
+                self.cv2 = cv2
+            except ImportError:
+                raise ImportError("No OpenEXR or OpenCV module found, can't save EXR")
+        
+        
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
@@ -223,8 +240,6 @@ class SaveImageOpenEXR:
     CATEGORY = "Marigold"
 
     def saveexr(self, images, filename_prefix):
-        import OpenEXR
-        import Imath 
         import re
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
@@ -246,31 +261,36 @@ class SaveImageOpenEXR:
         for image in images:
             # Ensure the tensor is on the CPU and convert it to a numpy array
             image_np = image.cpu().numpy()
-            #image_np = image_np[0]
             image_np = image_np.astype(np.float32)
 
-            # Assuming the image is in the format of floating point 32 bit (change PIXEL_TYPE if not)
-            PIXEL_TYPE = Imath.PixelType(Imath.PixelType.FLOAT)
-            height, width, channels = image_np.shape
+            if self.use_openexr:
+                # Assuming the image is in the format of floating point 32 bit (change PIXEL_TYPE if not)
+                PIXEL_TYPE = self.Imath.PixelType(self.Imath.PixelType.FLOAT)
+                height, width, channels = image_np.shape
 
-            # Prepare the EXR header
-            header = OpenEXR.Header(width, height)
-            half_chan = Imath.Channel(PIXEL_TYPE)
-            header['channels'] = dict([(c, half_chan) for c in "RGB"])
+                # Prepare the EXR header
+                header = self.OpenEXR.Header(width, height)
+                half_chan = self.Imath.Channel(PIXEL_TYPE)
+                header['channels'] = dict([(c, half_chan) for c in "RGB"])
 
-            # Split the channels for OpenEXR
-            R = image_np[:, :, 0].tostring()
-            G = image_np[:, :, 1].tostring()
-            B = image_np[:, :, 2].tostring()
+                # Split the channels for OpenEXR
+                R = image_np[:, :, 0].tostring()
+                G = image_np[:, :, 1].tostring()
+                B = image_np[:, :, 2].tostring()
 
-            # Increment the counter by 1 to get the next available value
-            counter = file_counter() + 1
-            file = f"{filename}_{counter:05}.exr"
+                # Increment the counter by 1 to get the next available value
+                counter = file_counter() + 1
+                file = f"{filename}_{counter:05}.exr"
 
-            # Write the EXR file
-            exr_file = OpenEXR.OutputFile(os.path.join(full_output_folder, file), header)
-            exr_file.writePixels({'R': R, 'G': G, 'B': B})
-            exr_file.close()
+                # Write the EXR file
+                exr_file = self.OpenEXR.OutputFile(os.path.join(full_output_folder, file), header)
+                exr_file.writePixels({'R': R, 'G': G, 'B': B})
+                exr_file.close()
+            else:            
+                counter = file_counter() + 1
+                file = f"{filename}_{counter:05}.exr"
+                exr = os.path.join(full_output_folder, file)
+                self.cv2.imwrite(exr, image_np)
 
         return ()
 

@@ -22,8 +22,8 @@ What I know of the parameters so far:
 
 regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings for the ensembling process, don't fully know how to use them yet.
 
-It can pretty memory hungry, and slow, the original local example uses 768p as max resolution (unsure of the hugginface demo).
-After some optimizations I've been able to do 2048x2048 without any downscaling with 20GB VRAM.
+It can pretty memory hungry, and slow, fp16 halves the memory use. Marigold is meant to be run around 768p resolution so resizing is recommended, at higher res your mileage may wary.
+I added a remap node to see the full range better, and OpenEXR node to save the full range, works wonders compared to default png when used in VFX/3D modeling software.
 
 ## Installing:
 Recommended way: 

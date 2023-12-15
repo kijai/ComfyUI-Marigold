@@ -221,7 +221,6 @@ class SaveImageOpenEXR:
             except ImportError:
                 raise ImportError("No OpenEXR or OpenCV module found, can't save EXR")
         
-        
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""

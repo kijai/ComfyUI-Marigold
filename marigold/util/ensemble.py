@@ -26,7 +26,6 @@ def ensemble_depths(input_images, regularizer_strength=0.02, max_iter=2, tol=1e-
         by aligning estimating the scale and shift
     """
     device = input_images.device
-    dtype = np.float32
     original_input = input_images.clone()
     n_img = input_images.shape[0]
     ori_shape = input_images.shape
@@ -48,7 +47,7 @@ def ensemble_depths(input_images, regularizer_strength=0.02, max_iter=2, tol=1e-
     
     # objective function
     def closure(x):
-        x = x.astype(dtype)
+        x = x.astype(np.float32)
         l = len(x)
         s = x[:int(l/2)]
         t = x[int(l/2):]
@@ -101,6 +100,4 @@ def ensemble_depths(input_images, regularizer_strength=0.02, max_iter=2, tol=1e-
     _max = torch.max(aligned_images)
     aligned_images = (aligned_images - _min) / (_max - _min)
     uncertainty /= (_max - _min)
-    
     return aligned_images, uncertainty
-

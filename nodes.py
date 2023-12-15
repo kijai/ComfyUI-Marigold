@@ -310,7 +310,8 @@ class RemapDepth:
     CATEGORY = "Marigold"
         
     def remap(self, image, min, max, clamp):
-        
+        if image.dtype == torch.float16:
+            image = image.to(torch.float32)
         image = min + image * (max - min)
         if clamp:
             image = torch.clamp(image, min=0.0, max=1.0)

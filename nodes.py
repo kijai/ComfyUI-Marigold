@@ -64,7 +64,6 @@ class MarigoldDepthEstimation:
         torch.manual_seed(seed)
 
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
-
         #load the diffusers model
         
         folders_to_check = [
@@ -74,7 +73,7 @@ class MarigoldDepthEstimation:
             "../../models/diffusers/Marigold",
         ]
 
-        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None:
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision:
             # Load the model only if it hasn't been loaded before
             checkpoint_path = None
             for folder in folders_to_check:
@@ -89,7 +88,6 @@ class MarigoldDepthEstimation:
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
             self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
             self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
-
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
 
         out = []
@@ -136,7 +134,6 @@ class MarigoldDepthEstimation:
                 depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
                 out.append(depth_map)
                 del depth_map, depth_predictions
-
         if invert:
             outstack = 1.0 - torch.stack(out, dim=0).cpu()
         else:

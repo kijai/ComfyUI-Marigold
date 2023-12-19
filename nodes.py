@@ -135,9 +135,9 @@ class MarigoldDepthEstimation:
                 out.append(depth_map)
                 del depth_map, depth_predictions
         if invert:
-            outstack = 1.0 - torch.stack(out, dim=0).cpu()
+            outstack = 1.0 - torch.stack(out, dim=0).cpu().to(torch.float32)
         else:
-            outstack = torch.stack(out, dim=0).cpu()
+            outstack = torch.stack(out, dim=0).cpu().to(torch.float32)
         if not keep_model_loaded:
             self.marigold_pipeline = None
             torch.cuda.empty_cache()

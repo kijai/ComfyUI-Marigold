@@ -235,7 +235,8 @@ class SaveImageOpenEXR:
             
             }
     
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES =("file_url",)
     FUNCTION = "saveexr"
     OUTPUT_NODE = True
     CATEGORY = "Marigold"
@@ -290,10 +291,10 @@ class SaveImageOpenEXR:
             else:            
                 counter = file_counter() + 1
                 file = f"{filename}_{counter:05}.exr"
-                exr = os.path.join(full_output_folder, file)
-                self.cv2.imwrite(exr, image_np)
+                exr_file = os.path.join(full_output_folder, file)
+                self.cv2.imwrite(exr_file, image_np)
 
-        return ()
+        return (f"/view?filename={file}&subfolder=&type=output",)
 
 class RemapDepth:
     @classmethod

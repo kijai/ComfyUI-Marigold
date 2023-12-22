@@ -37,10 +37,9 @@ Install requirements: `pip install -r requirements.txt`
 
 Get the model:
 
-Currently using the same diffusers pipeline as in the original implementation, so in addition to the custom node, you need the model in diffusers format:
+Currently using the same diffusers pipeline as in the original implementation, so in addition to the custom node, you need the model in diffusers format.
 
-https://share.phys.ethz.ch/~pf/bingkedata/marigold/Marigold_v1_merged_2.tar
-
-Either extract this archive, or do `git clone https://huggingface.co/Bingxin/Marigold/` in either of these folders:
+If the model is not found, it should autodownload with hugginface_hub.
+Alternatively get it manually from: https://huggingface.co/Bingxin/Marigold (or do `git clone https://huggingface.co/Bingxin/Marigold/`) in either of these folders:
 
 `ComfyUI\custom_nodes\ComfyUI-Marigold\checkpoints`  or `ComfyUI\models\diffusers`

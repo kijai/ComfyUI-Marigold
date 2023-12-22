@@ -83,8 +83,13 @@ class MarigoldDepthEstimation:
                     break
 
             if checkpoint_path is None:
-                raise FileNotFoundError("No checkpoint directory found.")
-
+                try:
+                    from huggingface_hub import snapshot_download
+                    checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
+                    snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)
+                    
+                except:
+                    raise FileNotFoundError("No checkpoint directory found.")
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
             self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
             self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode

@@ -47,6 +47,15 @@ class MarigoldDepthEstimation:
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
             "n_repeat_batch_size": ("INT", {"default": 2, "min": 1, "max": 4096, "step": 1}),
             "use_fp16": ("BOOLEAN", {"default": True}),
+            "scheduler": (
+            [   
+                'DDIMScheduler',
+                'DDPMScheduler',
+                'PNDMScheduler',
+                'DEISMultistepScheduler',
+            ], {
+               "default": 'DDIMScheduler'
+            }),
             },
             
             }
@@ -57,7 +66,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler):
         batch_size = image.shape[0]
         precision = torch.float16 if use_fp16 else torch.float32
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,7 +82,7 @@ class MarigoldDepthEstimation:
             "../../models/diffusers/Marigold",
         ]
 
-        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision:
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision or self.marigold_pipeline.noise_scheduler != scheduler:
             # Load the model only if it hasn't been loaded before
             checkpoint_path = None
             for folder in folders_to_check:
@@ -90,7 +99,7 @@ class MarigoldDepthEstimation:
                     
                 except:
                     raise FileNotFoundError("No checkpoint directory found.")
-            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed)
+            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
             self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)

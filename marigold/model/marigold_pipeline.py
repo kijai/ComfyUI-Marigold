@@ -10,6 +10,7 @@ from diffusers import (
     DDIMScheduler,
     DDPMScheduler,
     PNDMScheduler,
+    DEISMultistepScheduler,
     SchedulerMixin,
     UNet2DConditionModel,
 )
@@ -40,7 +41,7 @@ class MarigoldPipeline(nn.Module):
         trainable_unet=False,
         rgb_latent_scale_factor=0.18215,
         depth_latent_scale_factor=0.18215,
-        noise_scheduler_type="DDIMScheduler",
+        noise_scheduler_type=None,
         enable_gradient_checkpointing=False,
         enable_xformers=True,
     ) -> None:
@@ -115,6 +116,11 @@ class MarigoldPipeline(nn.Module):
             )
         elif "PNDMScheduler" == noise_scheduler_type:
             self.noise_scheduler: SchedulerMixin = PNDMScheduler.from_pretrained(
+                noise_scheduler_pretrained_path["path"],
+                subfolder=noise_scheduler_pretrained_path["subfolder"],
+            )
+        elif "DEISMultistepScheduler" == noise_scheduler_type:
+            self.noise_scheduler: SchedulerMixin = DEISMultistepScheduler.from_pretrained(
                 noise_scheduler_pretrained_path["path"],
                 subfolder=noise_scheduler_pretrained_path["subfolder"],
             )
@@ -251,7 +257,6 @@ class MarigoldPipeline(nn.Module):
             noise_pred = self.unet(
                 unet_input, t, encoder_hidden_states=batch_empty_text_embed
             ).sample  # [B, 4, h, w]
-
             # compute the previous noisy sample x_t -> x_t-1
             depth_latent = self.noise_scheduler.step(
                 noise_pred, t, depth_latent

@@ -57,6 +57,7 @@ class MarigoldDepthEstimation:
             ], {
                "default": 'DDIMScheduler'
             }),
+            "normalize": ("BOOLEAN", {"default": True}),
             },
             
             }
@@ -67,7 +68,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize):
         batch_size = image.shape[0]
         precision = torch.float16 if use_fp16 else torch.float32
         #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -75,6 +76,9 @@ class MarigoldDepthEstimation:
         torch.manual_seed(seed)
 
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
+        if normalize:
+            image = image * 2.0 - 1.0
+        
         #load the diffusers model
         
         folders_to_check = [

@@ -4,5 +4,4 @@ __pycache__
 .vscode
 *.ckpt
 *.safetensors
-*.pth
 types

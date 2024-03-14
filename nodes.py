@@ -6,6 +6,7 @@ from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
 from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
 
+
 import comfy.utils
 import comfy.model_management
 
@@ -22,6 +23,19 @@ def colorizedepth(depth_map, colorize_method):
     depth_colored_hwc = chw2hwc(depth_colored)
     return depth_colored_hwc
 
+def convert_dtype(dtype_str):
+    if dtype_str == 'fp32':
+        return torch.float32
+    elif dtype_str == 'fp16':
+        return torch.float16
+    elif dtype_str == 'bf16':
+        return torch.bfloat16
+    elif dtype_str == 'fp8':
+        return torch.float8_e4m3fn
+    
+    else:
+        raise NotImplementedError
+    
 script_directory = os.path.dirname(os.path.abspath(__file__))
 empty_text_embed = torch.load(os.path.join(script_directory, "empty_text_embed.pt"), map_location="cpu")
 
@@ -71,7 +85,6 @@ class MarigoldDepthEstimation:
     def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize):
         batch_size = image.shape[0]
         precision = torch.float16 if use_fp16 else torch.float32
-        #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = comfy.model_management.get_torch_device()
         torch.manual_seed(seed)
 
@@ -111,8 +124,6 @@ class MarigoldDepthEstimation:
         pbar = comfy.utils.ProgressBar(batch_size * n_repeat)
 
         out = []
-        # Set the number of images to process in a batch
-        batch_process_size = n_repeat_batch_size 
 
         with torch.no_grad():
             for i in range(batch_size):
@@ -121,9 +132,9 @@ class MarigoldDepthEstimation:
                 
                 # Process the duplicated batch in sub-batches
                 depth_maps = []
-                for j in range(0, n_repeat, batch_process_size):
+                for j in range(0, n_repeat, n_repeat_batch_size):
                     # Get the current sub-batch
-                    sub_batch = duplicated_batch[j:j + batch_process_size]
+                    sub_batch = duplicated_batch[j:j + n_repeat_batch_size]
                     
                     # Process the sub-batch
                     depth_maps_sub_batch = self.marigold_pipeline(sub_batch, num_inference_steps=denoise_steps, show_pbar=False)
@@ -163,7 +174,177 @@ class MarigoldDepthEstimation:
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
         return (outstack,)
+    
+class MarigoldDepthEstimationVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {  
+            "image": ("IMAGE", ),
+            "seed": ("INT", {"default": 123,"min": 0, "max": 0xffffffffffffffff, "step": 1}),
+            "first_frame_denoise_steps": ("INT", {"default": 4, "min": 1, "max": 4096, "step": 1}),
+            "first_frame_n_repeat": ("INT", {"default": 1, "min": 1, "max": 4096, "step": 1}),
+            "n_repeat_batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "step": 1}),          
+            "invert": ("BOOLEAN", {"default": True}),
+            "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "scheduler": (
+            [   
+                'DDIMScheduler',
+                'DDPMScheduler',
+                'PNDMScheduler',
+                'DEISMultistepScheduler',
+            ], {
+               "default": 'DEISMultistepScheduler'
+            }),
+            "normalize": ("BOOLEAN", {"default": True}),
+            "denoise_steps": ("INT", {"default": 4, "min": 1, "max": 4096, "step": 1}),
+            "flow_warping": ("BOOLEAN", {"default": True}),
+            "flow_depth_mix": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.05}),
+            "noise_ratio": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+            "dtype": (
+            [   
+                'fp16',
+                'bf16',
+                'fp32',
+            ], {
+               "default": 'fp16'
+            }),
+            
+            },
+            
+            }
+    
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES =("ensembled_image",)
+    FUNCTION = "process"
 
+    CATEGORY = "Marigold"
+
+    def process(self, image, seed, first_frame_denoise_steps, denoise_steps, first_frame_n_repeat, keep_model_loaded, invert,
+                n_repeat_batch_size, dtype, scheduler, normalize, flow_warping, flow_depth_mix, noise_ratio):
+        batch_size = image.shape[0]
+
+        precision = convert_dtype(dtype)
+       
+        device = comfy.model_management.get_torch_device()
+        torch.manual_seed(seed)
+
+        image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
+        if normalize:
+            image = image * 2.0 - 1.0
+        
+        if flow_warping:
+            from .marigold.util.flow_estimation import FlowEstimator
+            flow_estimator = FlowEstimator(os.path.join(script_directory, "gmflow", "gmflow_things-e9887eda.pth"), device)
+
+        folders_to_check = [
+            "checkpoints/Marigold_v1_merged",
+            "checkpoints/Marigold",
+            "../../models/diffusers/Marigold_v1_merged",
+            "../../models/diffusers/Marigold",
+        ]
+
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision or self.marigold_pipeline.noise_scheduler != scheduler:
+            # Load the model only if it hasn't been loaded before  
+
+            checkpoint_path = None
+            for folder in folders_to_check:
+                potential_path = os.path.join(script_directory, folder)
+                if os.path.exists(potential_path):
+                    checkpoint_path = potential_path
+                    break
+
+            if checkpoint_path is None:
+                try:
+                    from huggingface_hub import snapshot_download
+                    checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
+                    snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)
+                    
+                except:
+                    raise FileNotFoundError("No checkpoint directory found.")
+            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
+            self.marigold_pipeline = self.marigold_pipeline.to(precision).to(device)
+            self.marigold_pipeline.unet.eval()
+
+        pbar = comfy.utils.ProgressBar(batch_size)
+
+        out = []
+        for i in range(batch_size):
+            if flow_warping:
+                current_image = image[i]
+                prev_image = image[i-1]
+                flow = flow_estimator.estimate_flow(prev_image.to(torch.float32), current_image.to(torch.float32))
+            if i == 0 or not flow_warping:
+                # Duplicate the current image n_repeat times
+                duplicated_batch = image[i].unsqueeze(0).repeat(first_frame_n_repeat, 1, 1, 1)
+                # Process the duplicated batch in sub-batches
+                depth_maps = []
+                for j in range(0, first_frame_n_repeat, n_repeat_batch_size):
+                    # Get the current sub-batch
+                    sub_batch = duplicated_batch[j:j + n_repeat_batch_size]
+                    
+                    # Process the sub-batch
+                    depth_maps_sub_batch = self.marigold_pipeline(sub_batch, num_inference_steps=first_frame_denoise_steps, show_pbar=False)
+                    
+                    # Process each depth map in the sub-batch if necessary
+                    for depth_map in depth_maps_sub_batch:
+                        depth_map = torch.clip(depth_map, -1.0, 1.0)
+                        depth_map = (depth_map + 1.0) / 2.0
+                        depth_maps.append(depth_map)
+                
+                depth_predictions = torch.cat(depth_maps, dim=0).squeeze()
+                
+                del duplicated_batch, depth_maps_sub_batch
+                comfy.model_management.soft_empty_cache()
+
+                # Test-time ensembling
+                if first_frame_n_repeat > 1:
+                    depth_map, pred_uncert = ensemble_depths(
+                        depth_predictions,
+                        regularizer_strength=0.02,
+                        max_iter=5,
+                        tol=1e-3,
+                        reduction="median",
+                        max_res=None,
+                        device=device,
+                    )
+                    prev_depth_map = torch.clip(depth_map, 0.0, 1.0)                
+                    depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
+                    out.append(depth_map)
+                    pbar.update(1)
+                else:
+                    prev_depth_map = torch.clip(depth_map[0], 0.0, 1.0)                
+                    depth_map = depth_map[0].unsqueeze(2).repeat(1, 1, 3)
+                    out.append(depth_map)
+                    pbar.update(1)
+                
+            else:
+                #idea and original implementation from https://github.com/pablodawson/Marigold-Video
+                warped_depth_map = FlowEstimator.warp_with_flow(flow, prev_depth_map).to(precision).to(device)                   
+                warped_depth_map = (warped_depth_map + 1.0) / 2.0
+                assert warped_depth_map.min() >= -1.0 and warped_depth_map.max() <= 1.0
+                depth_predictions = self.marigold_pipeline(current_image.unsqueeze(0), init_depth_latent=warped_depth_map.unsqueeze(0).repeat(3, 1, 1).unsqueeze(0),
+                                                            noise_ratio=noise_ratio, num_inference_steps=denoise_steps, show_pbar=False)
+                
+                warped_depth_map = warped_depth_map / warped_depth_map.max()
+                depth_out = flow_depth_mix * depth_predictions + (1 - flow_depth_mix) * warped_depth_map
+                depth_out = torch.clip(depth_out, 0.0, 1.0)
+
+                prev_depth_map = depth_out.squeeze()
+                depth_out = depth_out.squeeze().unsqueeze(2).repeat(1, 1, 3)
+                
+                out.append(depth_out)
+                pbar.update(1)
+
+                del depth_predictions, warped_depth_map
+        if invert:
+            outstack = 1.0 - torch.stack(out, dim=0).cpu().to(torch.float32)
+        else:
+            outstack = torch.stack(out, dim=0).cpu().to(torch.float32)
+        if not keep_model_loaded:
+            self.marigold_pipeline = None
+            comfy.model_management.soft_empty_cache()
+        return (outstack,)
+    
 class ColorizeDepthmap:
     @classmethod
     def INPUT_TYPES(s):
@@ -337,12 +518,14 @@ class RemapDepth:
 
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,
+    "MarigoldDepthEstimationVideo": MarigoldDepthEstimationVideo,
     "ColorizeDepthmap": ColorizeDepthmap,
     "SaveImageOpenEXR": SaveImageOpenEXR,
     "RemapDepth": RemapDepth
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MarigoldDepthEstimation": "MarigoldDepthEstimation",
+    "MarigoldDepthEstimationVideo": "MarigoldDepthEstimationVideo",
     "ColorizeDepthmap": "ColorizeDepthmap",
     "SaveImageOpenEXR": "SaveImageOpenEXR",
     "RemapDepth": "RemapDepth"

@@ -200,6 +200,7 @@ class MarigoldPipeline(nn.Module):
         show_pbar=False,
         init_depth_latent=None,
         return_depth_latent=False,
+        noise_ratio: float = 0.2,
     ):
         device = rgb_in.device
         precision = self.unet.dtype    
@@ -212,15 +213,17 @@ class MarigoldPipeline(nn.Module):
 
         # Initial depth map (noise)
         if init_depth_latent is not None:
-            init_depth_latent = init_depth_latent.to(dtype=precision)
-            assert (
-                init_depth_latent.shape == rgb_latent.shape
-            ), "initial depth latent should be the size of [B, 4, H/8, W/8]"
-            depth_latent = init_depth_latent
-            depth_latent = torch.randn(rgb_latent.shape, device=device, dtype=precision)
-        else:
-            depth_latent = torch.randn(rgb_latent.shape, device=device)  # [B, 4, h, w]
 
+            depth_latent = self.encode_rgb(init_depth_latent)
+            depth_latent_noise = torch.randn(rgb_latent.shape, device=device, dtype=precision)
+            depth_latent = depth_latent* (1- noise_ratio) + depth_latent_noise * noise_ratio
+    
+            depth_latent = torch.clip(depth_latent, -1.0, 1.0)
+            assert depth_latent.min() >= -1.0 and depth_latent.max() <= 1.0
+
+        else:
+            depth_latent = torch.randn(rgb_latent.shape, device=device, dtype=precision)  # [B, 4, h, w]
+        
         # Expand text embeding for batch
         batch_empty_text_embed = self.empty_text_embed.repeat(
             (rgb_latent.shape[0], 1, 1)

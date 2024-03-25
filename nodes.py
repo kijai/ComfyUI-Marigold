@@ -68,6 +68,7 @@ class MarigoldDepthEstimation:
                 'DDPMScheduler',
                 'PNDMScheduler',
                 'DEISMultistepScheduler',
+                'LCMScheduler',
             ], {
                "default": 'DDIMScheduler'
             }),
@@ -228,6 +229,7 @@ class MarigoldDepthEstimationVideo:
                 'DDPMScheduler',
                 'PNDMScheduler',
                 'DEISMultistepScheduler',
+                'LCMScheduler',
             ], {
                "default": 'DEISMultistepScheduler'
             }),

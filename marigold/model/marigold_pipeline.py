@@ -13,6 +13,7 @@ from diffusers import (
     DEISMultistepScheduler,
     SchedulerMixin,
     UNet2DConditionModel,
+    LCMScheduler
 )
 from torch import nn
 from torch.nn import Conv2d
@@ -121,6 +122,11 @@ class MarigoldPipeline(nn.Module):
             )
         elif "DEISMultistepScheduler" == noise_scheduler_type:
             self.noise_scheduler: SchedulerMixin = DEISMultistepScheduler.from_pretrained(
+                noise_scheduler_pretrained_path["path"],
+                subfolder=noise_scheduler_pretrained_path["subfolder"],
+            )
+        elif "LCMScheduler" == noise_scheduler_type:
+            self.noise_scheduler: SchedulerMixin = LCMScheduler.from_pretrained(
                 noise_scheduler_pretrained_path["path"],
                 subfolder=noise_scheduler_pretrained_path["subfolder"],
             )

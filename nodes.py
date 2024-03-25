@@ -46,7 +46,7 @@ class MarigoldDepthEstimation:
             "image": ("IMAGE", ),
             "seed": ("INT", {"default": 123,"min": 0, "max": 0xffffffffffffffff, "step": 1}),
             "denoise_steps": ("INT", {"default": 10, "min": 1, "max": 4096, "step": 1}),
-            "n_repeat": ("INT", {"default": 10, "min": 2, "max": 4096, "step": 1}),
+            "n_repeat": ("INT", {"default": 10, "min": 1, "max": 4096, "step": 1}),
             "regularizer_strength": ("FLOAT", {"default": 0.02, "min": 0.001, "max": 4096, "step": 0.001}),
             "reduction_method": (
             [   
@@ -73,6 +73,15 @@ class MarigoldDepthEstimation:
             }),
             "normalize": ("BOOLEAN", {"default": True}),
             },
+            "optional": {
+                "model": (
+            [   
+                'Marigold',
+                'marigold-lcm-v1-0',  
+            ], {
+               "default": 'Marigold'
+            }),
+            }
             
             }
     
@@ -82,7 +91,7 @@ class MarigoldDepthEstimation:
 
     CATEGORY = "Marigold"
 
-    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize):
+    def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize, model="Marigold"):
         batch_size = image.shape[0]
         precision = torch.float16 if use_fp16 else torch.float32
         device = comfy.model_management.get_torch_device()
@@ -93,15 +102,25 @@ class MarigoldDepthEstimation:
             image = image * 2.0 - 1.0
         
         #load the diffusers model
-        
-        folders_to_check = [
-            "checkpoints/Marigold_v1_merged",
-            "checkpoints/Marigold",
-            "../../models/diffusers/Marigold_v1_merged",
-            "../../models/diffusers/Marigold",
-        ]
-
-        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision or self.marigold_pipeline.noise_scheduler != scheduler:
+        if model == "Marigold":
+            folders_to_check = [
+                "checkpoints/Marigold_v1_merged",
+                "checkpoints/Marigold",
+                "../../models/diffusers/Marigold_v1_merged",
+                "../../models/diffusers/Marigold",
+            ]
+        elif model == "marigold-lcm-v1-0":
+            folders_to_check = [
+                "../../models/diffusers/marigold-lcm-v1-0",
+                "checkpoints/marigold-lcm-v1-0",
+            ]
+        self.custom_config = {
+            "model": model,
+            "use_fp16": use_fp16,
+            "scheduler": scheduler,
+        }
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.current_config != self.custom_config:
+            self.current_config = self.custom_config
             # Load the model only if it hasn't been loaded before
             checkpoint_path = None
             for folder in folders_to_check:
@@ -111,13 +130,22 @@ class MarigoldDepthEstimation:
                     break
 
             if checkpoint_path is None:
-                try:
-                    from huggingface_hub import snapshot_download
-                    checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
-                    snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)
-                    
-                except:
-                    raise FileNotFoundError("No checkpoint directory found.")
+                if model == "Marigold":
+                    try:
+                        from huggingface_hub import snapshot_download
+                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
+                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                    except:
+                        raise FileNotFoundError("No checkpoint directory found.")
+                if model == "marigold-lcm-v1-0":
+                    try:
+                        from huggingface_hub import snapshot_download
+                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/marigold-lcm-v1-0")
+                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                    except:
+                        raise FileNotFoundError("No checkpoint directory found.")    
+
+
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)
             self.marigold_pipeline.unet.eval()  # Set the model to evaluation mode
@@ -161,14 +189,22 @@ class MarigoldDepthEstimation:
                         max_res=None,
                         device=device,
                     )
+                    print(depth_map.shape)
+                    depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
+                    print(depth_map.shape)
+                else:
+                    depth_map = depth_map.permute(1, 2, 0)
+                    depth_map = depth_map.repeat(1, 1, 3)
+                    print(depth_map.shape)
                 
-                depth_map = depth_map.unsqueeze(2).repeat(1, 1, 3)
                 out.append(depth_map)
                 del depth_map, depth_predictions
+      
         if invert:
             outstack = 1.0 - torch.stack(out, dim=0).cpu().to(torch.float32)
         else:
             outstack = torch.stack(out, dim=0).cpu().to(torch.float32)
+        print(outstack.min(), outstack.max())
         if not keep_model_loaded:
             self.marigold_pipeline = None
             torch.cuda.empty_cache()
@@ -208,8 +244,16 @@ class MarigoldDepthEstimationVideo:
             ], {
                "default": 'fp16'
             }),
-            
             },
+            "optional": {
+                "model": (
+            [   
+                'Marigold',
+                'marigold-lcm-v1-0',  
+            ], {
+               "default": 'Marigold'
+            }),
+            }
             
             }
     
@@ -220,7 +264,7 @@ class MarigoldDepthEstimationVideo:
     CATEGORY = "Marigold"
 
     def process(self, image, seed, first_frame_denoise_steps, denoise_steps, first_frame_n_repeat, keep_model_loaded, invert,
-                n_repeat_batch_size, dtype, scheduler, normalize, flow_warping, flow_depth_mix, noise_ratio):
+                n_repeat_batch_size, dtype, scheduler, normalize, flow_warping, flow_depth_mix, noise_ratio, model="Marigold"):
         batch_size = image.shape[0]
 
         precision = convert_dtype(dtype)
@@ -236,16 +280,26 @@ class MarigoldDepthEstimationVideo:
             from .marigold.util.flow_estimation import FlowEstimator
             flow_estimator = FlowEstimator(os.path.join(script_directory, "gmflow", "gmflow_things-e9887eda.pth"), device)
 
-        folders_to_check = [
-            "checkpoints/Marigold_v1_merged",
-            "checkpoints/Marigold",
-            "../../models/diffusers/Marigold_v1_merged",
-            "../../models/diffusers/Marigold",
-        ]
-
-        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.marigold_pipeline.unet.dtype != precision or self.marigold_pipeline.noise_scheduler != scheduler:
-            # Load the model only if it hasn't been loaded before  
-
+        if model == "Marigold":
+            folders_to_check = [
+                "checkpoints/Marigold_v1_merged",
+                "checkpoints/Marigold",
+                "../../models/diffusers/Marigold_v1_merged",
+                "../../models/diffusers/Marigold",
+            ]
+        elif model == "marigold-lcm-v1-0":
+            folders_to_check = [
+                "../../models/diffusers/marigold-lcm-v1-0",
+                "checkpoints/marigold-lcm-v1-0",
+            ]
+        self.custom_config = {
+            "model": model,
+            "dtype": dtype,
+            "scheduler": scheduler,
+        }
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.current_config != self.custom_config:
+            self.current_config = self.custom_config
+            # Load the model only if it hasn't been loaded before
             checkpoint_path = None
             for folder in folders_to_check:
                 potential_path = os.path.join(script_directory, folder)
@@ -254,17 +308,23 @@ class MarigoldDepthEstimationVideo:
                     break
 
             if checkpoint_path is None:
-                try:
-                    from huggingface_hub import snapshot_download
-                    checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
-                    snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)
-                    
-                except:
-                    raise FileNotFoundError("No checkpoint directory found.")
+                if model == "Marigold":
+                    try:
+                        from huggingface_hub import snapshot_download
+                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
+                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                    except:
+                        raise FileNotFoundError("No checkpoint directory found.")
+                if model == "marigold-lcm-v1-0":
+                    try:
+                        from huggingface_hub import snapshot_download
+                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/marigold-lcm-v1-0")
+                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                    except:
+                        raise FileNotFoundError("No checkpoint directory found.")
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(precision).to(device)
             self.marigold_pipeline.unet.eval()
-
         pbar = comfy.utils.ProgressBar(batch_size)
 
         out = []

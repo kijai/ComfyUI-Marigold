@@ -1,0 +1,483 @@
+{
+  "last_node_id": 15,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "ImageResize+",
+      "pos": [
+        427,
+        98
+      ],
+      "size": {
+        "0": 315,
+        "1": 218
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResize+"
+      },
+      "widgets_values": [
+        768,
+        768,
+        "nearest",
+        true,
+        "always",
+        32
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        102,
+        99
+      ],
+      "size": [
+        297,
+        430
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "shape": 3
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "marigold_example_0.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "ImageInvert",
+      "pos": [
+        1186,
+        184
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageInvert"
+      }
+    },
+    {
+      "id": 5,
+      "type": "ColorizeDepthmap",
+      "pos": [
+        1170,
+        266
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            14
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ColorizeDepthmap"
+      },
+      "widgets_values": [
+        "Spectral"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PreviewImage",
+      "pos": [
+        1547,
+        26
+      ],
+      "size": [
+        381.5950622558594,
+        526.610237121582
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 7,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        1181,
+        377
+      ],
+      "size": [
+        320.5950622558594,
+        468.61023712158203
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 14,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 6,
+      "type": "RemapDepth",
+      "pos": [
+        1183,
+        23
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 8,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            7,
+            15
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RemapDepth"
+      },
+      "widgets_values": [
+        0,
+        1,
+        true
+      ]
+    },
+    {
+      "id": 12,
+      "type": "Note",
+      "pos": [
+        426,
+        -18
+      ],
+      "size": {
+        "0": 305.4951171875,
+        "1": 64.41022491455078
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "title": "Note: Image Size",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Marigold works best close to 768p"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 13,
+      "type": "Note",
+      "pos": [
+        766,
+        -186
+      ],
+      "size": [
+        354.9950408935547,
+        178.50989379882816
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "title": "Note: Marigold",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "- denoise_steps: diffusion step count, more can increase quality, less is faster\n- n_repeat: how many times the prediction is done\n- regulazer_strenth/method, max_iter, tol:\nThese are settings for the ensembler, generally do not touch\n- n_repeat_batch_size: batches the n_repeats for speed, INCREASES MEMORY USE\n-use_fp16: can lower quality a bit, disabling DOUBLES MEMORY USE\n- scheduler: different schedulers have bit different outputs, experimental\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 11,
+      "type": "Note",
+      "pos": [
+        1182,
+        -87
+      ],
+      "size": [
+        305.49512596130376,
+        64.41022338867188
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "title": "Note: RemapDepth",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "You can use this to adjust the depth map range"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 14,
+      "type": "Note",
+      "pos": [
+        773,
+        541
+      ],
+      "size": [
+        343.2861170959475,
+        74.30443054199225
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "title": "Note: Marigold",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Model:\nModels are autodownloaded from Hugginface to ComfyUI/models/diffusers -folder\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 1,
+      "type": "MarigoldDepthEstimation",
+      "pos": [
+        783,
+        84
+      ],
+      "size": [
+        356,
+        394
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ensembled_image",
+          "type": "IMAGE",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MarigoldDepthEstimation"
+      },
+      "widgets_values": [
+        904467591362851,
+        "fixed",
+        1,
+        4,
+        0.02,
+        "median",
+        5,
+        0.001,
+        true,
+        true,
+        1,
+        true,
+        "LCMScheduler",
+        true,
+        "marigold-lcm-v1-0"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      1,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      3,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      6,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      8,
+      1,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      9,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      14,
+      5,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      15,
+      6,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

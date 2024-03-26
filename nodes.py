@@ -205,11 +205,10 @@ class MarigoldDepthEstimation:
             outstack = 1.0 - torch.stack(out, dim=0).cpu().to(torch.float32)
         else:
             outstack = torch.stack(out, dim=0).cpu().to(torch.float32)
-        print(outstack.min(), outstack.max())
+
         if not keep_model_loaded:
             self.marigold_pipeline = None
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+            comfy.model_management.soft_empty_cache()
         return (outstack,)
     
 class MarigoldDepthEstimationVideo:

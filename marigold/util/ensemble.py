@@ -79,8 +79,13 @@ def ensemble_depths(input_images, regularizer_strength=0.02, max_iter=2, tol=1e-
     t = x[int(l/2):]
     
     # Prediction
-    s = torch.from_numpy(s).to(device)
-    t = torch.from_numpy(t).to(device)
+    try:
+        s = torch.from_numpy(s).to(device)
+        t = torch.from_numpy(t).to(device)
+    except:
+        s = torch.from_numpy(s.astype(np.float32)).to(device)
+        t = torch.from_numpy(t.astype(np.float32)).to(device)
+
     transformed_arrays = original_input * s.view(-1, 1, 1) + t.view(-1, 1, 1)
     if 'mean' == reduction:
         aligned_images = torch.mean(transformed_arrays, dim=0)

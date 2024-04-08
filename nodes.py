@@ -90,8 +90,25 @@ class MarigoldDepthEstimation:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES =("ensembled_image",)
     FUNCTION = "process"
-
     CATEGORY = "Marigold"
+    DESCRIPTION = """
+Diffusion-based monocular depth estimation:  
+https://github.com/prs-eth/Marigold  
+  
+- denoise_steps: steps per depth map, increase for accuracy in exchange of processing time
+- n_repeat: amount of iterations to be ensembled into single depth map
+- n_repeat_batch_size: how many of the n_repeats are processed as a batch,  
+if you have the VRAM this can match the n_repeats for faster processing  
+- model: Marigold or it's LCM version marigold-lcm-v1-0  
+For the LCM model use around 4 steps and the LCMScheduler  
+- scheduler: Different schedulers give bit different results  
+- invert: marigold by default produces depth map where black is front,  
+for controlnets etc. we want the opposite.  
+- regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings   
+for the ensembling process, generally do not touch.  
+- use_fp16: if true, use fp16, if false use fp32  
+fp16 uses much less VRAM, but in some cases can lead to loss of quality.  
+"""
 
     def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize, model="Marigold"):
         batch_size = image.shape[0]
@@ -262,8 +279,26 @@ class MarigoldDepthEstimationVideo:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES =("ensembled_image",)
     FUNCTION = "process"
-
     CATEGORY = "Marigold"
+    DESCRIPTION = """
+Diffusion-based monocular depth estimation:  
+https://github.com/prs-eth/Marigold  
+
+This node is experimental version that includes optical flow  
+for video consistency between frames.  
+
+- denoise_steps: steps per depth map, increase for accuracy in exchange of processing time
+- n_repeat: amount of iterations to be ensembled into single depth map
+- n_repeat_batch_size: how many of the n_repeats are processed as a batch,  
+if you have the VRAM this can match the n_repeats for faster processing  
+- model: Marigold or it's LCM version marigold-lcm-v1-0  
+For the LCM model use around 4 steps and the LCMScheduler  
+- scheduler: Different schedulers give bit different results  
+- invert: marigold by default produces depth map where black is front,  
+for controlnets etc. we want the opposite.  
+- regularizer_strength, reduction_method, max_iter, tol (tolerance) are settings   
+for the ensembling process, generally do not touch.  
+"""
 
     def process(self, image, seed, first_frame_denoise_steps, denoise_steps, first_frame_n_repeat, keep_model_loaded, invert,
                 n_repeat_batch_size, dtype, scheduler, normalize, flow_warping, flow_depth_mix, noise_ratio, model="Marigold"):
@@ -281,18 +316,18 @@ class MarigoldDepthEstimationVideo:
         if flow_warping:
             from .marigold.util.flow_estimation import FlowEstimator
             flow_estimator = FlowEstimator(os.path.join(script_directory, "gmflow", "gmflow_things-e9887eda.pth"), device)
-
+        diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
         if model == "Marigold":
             folders_to_check = [
-                "checkpoints/Marigold_v1_merged",
-                "checkpoints/Marigold",
-                "../../models/diffusers/Marigold_v1_merged",
-                "../../models/diffusers/Marigold",
+                os.path.join(script_directory,"checkpoints","Marigold_v1_merged",),
+                os.path.join(script_directory,"checkpoints","Marigold",),
+                os.path.join(diffusers_model_path,"Marigold_v1_merged"),
+                os.path.join(diffusers_model_path,"Marigold")
             ]
         elif model == "marigold-lcm-v1-0":
             folders_to_check = [
-                "../../models/diffusers/marigold-lcm-v1-0",
-                "checkpoints/marigold-lcm-v1-0",
+                os.path.join(diffusers_model_path,"marigold-lcm-v1-0"),
+                os.path.join(diffusers_model_path,"checkpoints","marigold-lcm-v1-0")
             ]
         self.custom_config = {
             "model": model,
@@ -308,22 +343,22 @@ class MarigoldDepthEstimationVideo:
                 if os.path.exists(potential_path):
                     checkpoint_path = potential_path
                     break
-
+            to_ignore = ["*.bin", "*fp16*"]            
             if checkpoint_path is None:
                 if model == "Marigold":
                     try:
                         from huggingface_hub import snapshot_download
-                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
-                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                        checkpoint_path = os.path.join(diffusers_model_path, "Marigold")
+                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=to_ignore, local_dir=checkpoint_path, local_dir_use_symlinks=False)  
                     except:
-                        raise FileNotFoundError("No checkpoint directory found.")
+                        raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
                 if model == "marigold-lcm-v1-0":
                     try:
                         from huggingface_hub import snapshot_download
-                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/marigold-lcm-v1-0")
-                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                        checkpoint_path = os.path.join(diffusers_model_path, "marigold-lcm-v1-0")
+                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=to_ignore, local_dir=checkpoint_path, local_dir_use_symlinks=False)  
                     except:
-                        raise FileNotFoundError("No checkpoint directory found.")
+                        raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(precision).to(device)
             self.marigold_pipeline.unet.eval()

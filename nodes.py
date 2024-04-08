@@ -9,6 +9,7 @@ from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_r
 
 import comfy.utils
 import comfy.model_management
+import folder_paths
 
 def colorizedepth(depth_map, colorize_method):
     depth_map = depth_map.cpu().numpy()
@@ -101,19 +102,20 @@ class MarigoldDepthEstimation:
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
         if normalize:
             image = image * 2.0 - 1.0
-        
+
+        diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
         #load the diffusers model
         if model == "Marigold":
             folders_to_check = [
-                "checkpoints/Marigold_v1_merged",
-                "checkpoints/Marigold",
-                "../../models/diffusers/Marigold_v1_merged",
-                "../../models/diffusers/Marigold",
+                os.path.join(script_directory,"checkpoints","Marigold_v1_merged",),
+                os.path.join(script_directory,"checkpoints","Marigold",),
+                os.path.join(diffusers_model_path,"Marigold_v1_merged"),
+                os.path.join(diffusers_model_path,"Marigold")
             ]
         elif model == "marigold-lcm-v1-0":
             folders_to_check = [
-                "../../models/diffusers/marigold-lcm-v1-0",
-                "checkpoints/marigold-lcm-v1-0",
+                os.path.join(diffusers_model_path,"marigold-lcm-v1-0"),
+                os.path.join(diffusers_model_path,"checkpoints","marigold-lcm-v1-0")
             ]
         self.custom_config = {
             "model": model,
@@ -125,27 +127,26 @@ class MarigoldDepthEstimation:
             # Load the model only if it hasn't been loaded before
             checkpoint_path = None
             for folder in folders_to_check:
-                potential_path = os.path.join(script_directory, folder)
-                if os.path.exists(potential_path):
-                    checkpoint_path = potential_path
+                if os.path.exists(folder):
+                    checkpoint_path = folder
                     break
+            to_ignore = ["*.bin", "*fp16*"]
 
             if checkpoint_path is None:
                 if model == "Marigold":
                     try:
                         from huggingface_hub import snapshot_download
-                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/Marigold")
-                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                        checkpoint_path = os.path.join(diffusers_model_path, "Marigold")
+                        snapshot_download(repo_id="Bingxin/Marigold", ignore_patterns=to_ignore, local_dir=checkpoint_path, local_dir_use_symlinks=False)  
                     except:
-                        raise FileNotFoundError("No checkpoint directory found.")
+                        raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
                 if model == "marigold-lcm-v1-0":
                     try:
                         from huggingface_hub import snapshot_download
-                        checkpoint_path = os.path.join(script_directory, "../../models/diffusers/marigold-lcm-v1-0")
-                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=["*.bin"], local_dir=checkpoint_path, local_dir_use_symlinks=False)  
+                        checkpoint_path = os.path.join(diffusers_model_path, "marigold-lcm-v1-0")
+                        snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=to_ignore, local_dir=checkpoint_path, local_dir_use_symlinks=False)  
                     except:
-                        raise FileNotFoundError("No checkpoint directory found.")    
-
+                        raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
 
             self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(device).half() if use_fp16 else self.marigold_pipeline.to(device)

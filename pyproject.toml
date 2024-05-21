@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-marigold"
+description = ""
+version = "1.0.0"
+license = "LICENSE"
+dependencies = ["accelerate>=0.22.0", "diffusers>=0.25.0", "matplotlib", "scipy", "torch>=2.0.1", "transformers>=4.32.1", "huggingface-hub"]
+
+[project.urls]
+Repository = "https://github.com/kijai/ComfyUI-Marigold"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-Marigold"
+Icon = ""

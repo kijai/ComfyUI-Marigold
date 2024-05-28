@@ -2,13 +2,24 @@ import os
 import torch
 import numpy as np
 
+from PIL import Image
+import torchvision.transforms as transforms
+
 from .marigold.model.marigold_pipeline import MarigoldPipeline
 from .marigold.util.ensemble import ensemble_depths
-from .marigold.util.image_util import chw2hwc, colorize_depth_maps, resize_max_res
+from .marigold.util.image_util import chw2hwc, colorize_depth_maps
 
+try:
+    from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline
+except:
+    MarigoldDepthPipeline = None
 
+from diffusers.schedulers import (
+        DDIMScheduler,
+        LCMScheduler
+    )
 import comfy.utils
-import comfy.model_management
+import model_management 
 import folder_paths
 
 def colorizedepth(depth_map, colorize_method):
@@ -113,7 +124,7 @@ fp16 uses much less VRAM, but in some cases can lead to loss of quality.
     def process(self, image, seed, denoise_steps, n_repeat, regularizer_strength, reduction_method, max_iter, tol,invert, keep_model_loaded, n_repeat_batch_size, use_fp16, scheduler, normalize, model="Marigold"):
         batch_size = image.shape[0]
         precision = torch.float16 if use_fp16 else torch.float32
-        device = comfy.model_management.get_torch_device()
+        device = model_management.get_torch_device()
         torch.manual_seed(seed)
 
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
@@ -226,9 +237,132 @@ fp16 uses much less VRAM, but in some cases can lead to loss of quality.
 
         if not keep_model_loaded:
             self.marigold_pipeline = None
-            comfy.model_management.soft_empty_cache()
+            model_management.soft_empty_cache()
         return (outstack,)
+
+class MarigoldDepthEstimation_v2:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {  
+            "image": ("IMAGE", ),
+            "seed": ("INT", {"default": 123,"min": 0, "max": 0xffffffffffffffff, "step": 1}),
+            "denoise_steps": ("INT", {"default": 10, "min": 1, "max": 4096, "step": 1}),
+            "ensemble_size": ("INT", {"default": 3, "min": 1, "max": 4096, "step": 1}),
+            "processing_resolution": ("INT", {"default": 768, "min": 1, "max": 4096, "step": 8}),
+
+            "scheduler": (
+            [   
+                "DDIMScheduler",
+                "LCMScheduler",
+            ], {
+               "default": 'DDIMScheduler'
+            }),
+            },
+            "optional": {
+                "model": (
+            [   
+                'marigold-v1-0',
+                'marigold-lcm-v1-0',
+                'marigold-normals-v0-1',
+                'marigold-normals-lcm-v0-1',
+
+            ], {
+               "default": 'Marigold'
+            }),
+            }
+            
+            }
     
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES =("ensembled_image",)
+    FUNCTION = "process"
+    CATEGORY = "Marigold"
+    DESCRIPTION = """
+Diffusion-based monocular depth estimation:  
+https://github.com/prs-eth/Marigold  
+  
+Uses Diffusers 0.28.0 Marigold pipelines.  
+"""
+
+    def process(self, image, seed, denoise_steps, processing_resolution, ensemble_size, scheduler, model):
+        batch_size = image.shape[0]
+        device = model_management.get_torch_device()
+        torch.manual_seed(seed)
+
+        image = image.permute(0, 3, 1, 2).to(device)
+
+        diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
+        checkpoint_path = os.path.join(diffusers_model_path, model)
+      
+        self.custom_config = {
+            "model": model,
+            "scheduler": scheduler,
+        }
+        if not hasattr(self, 'marigold_pipeline') or self.marigold_pipeline is None or self.current_config != self.custom_config:
+            self.marigold_pipeline = None
+            self.current_config = self.custom_config
+
+            if not os.path.exists(checkpoint_path):
+                print(f"Selected model: {checkpoint_path} not found, downloading...")
+                from huggingface_hub import snapshot_download
+                snapshot_download(repo_id=f"prs-eth/{model}", 
+                                  allow_patterns=["*.json", "*.txt","*fp16*"],
+                                  ignore_patterns=["*.bin"],
+                                  local_dir=checkpoint_path, 
+                                  local_dir_use_symlinks=False
+                                  )
+                    
+            if "normals" in model:
+                self.marigold_pipeline = MarigoldNormalsPipeline.from_pretrained(
+                checkpoint_path, 
+                variant="fp16", 
+                torch_dtype=torch.float16).to(device)
+            else:
+                self.marigold_pipeline = MarigoldDepthPipeline.from_pretrained(
+                checkpoint_path, 
+                variant="fp16", 
+                torch_dtype=torch.float16).to(device)
+            
+
+        pbar = comfy.utils.ProgressBar(batch_size * ensemble_size)
+
+        out = []
+
+        scheduler_kwargs = {
+            DDIMScheduler: {
+                "num_inference_steps": denoise_steps,
+                "ensemble_size": ensemble_size,
+            },
+            LCMScheduler: {
+                "num_inference_steps": denoise_steps,
+                "ensemble_size": ensemble_size,
+            },	
+        }
+        pipe_kwargs = scheduler_kwargs[type(self.marigold_pipeline.scheduler)]
+
+        processed = self.marigold_pipeline(
+            image,
+            output_type = "pt",
+            processing_resolution = processing_resolution,
+            **pipe_kwargs
+            )
+        
+        if "normals" in model:
+            normals = self.marigold_pipeline.image_processor.visualize_normals(processed.prediction)
+            normals_tensor = transforms.ToTensor()(normals[0])
+            normals_tensor = normals_tensor.unsqueeze(0).permute(0, 2, 3, 1).cpu().float()
+
+            return (normals_tensor,)
+        
+        else:
+            depth_out = processed[0].permute(0, 2, 3, 1).cpu().float()
+            depth_out = depth_out.repeat(1, 1, 1, 3)
+            depth_out = 1.0 - depth_out
+
+            return (depth_out,)
+
+        
+        
 class MarigoldDepthEstimationVideo:
     @classmethod
     def INPUT_TYPES(s):
@@ -306,7 +440,7 @@ for the ensembling process, generally do not touch.
 
         precision = convert_dtype(dtype)
        
-        device = comfy.model_management.get_torch_device()
+        device = model_management.get_torch_device()
         torch.manual_seed(seed)
 
         image = image.permute(0, 3, 1, 2).to(device).to(dtype=precision)
@@ -359,7 +493,8 @@ for the ensembling process, generally do not touch.
                         snapshot_download(repo_id="prs-eth/marigold-lcm-v1-0", ignore_patterns=to_ignore, local_dir=checkpoint_path, local_dir_use_symlinks=False)  
                     except:
                         raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
-            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
+            
+            self.marigold_pipeline = MarigoldDepthPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(precision).to(device)
             self.marigold_pipeline.unet.eval()
         pbar = comfy.utils.ProgressBar(batch_size)
@@ -439,7 +574,7 @@ for the ensembling process, generally do not touch.
             outstack = torch.stack(out, dim=0).cpu().to(torch.float32)
         if not keep_model_loaded:
             self.marigold_pipeline = None
-            comfy.model_management.soft_empty_cache()
+            model_management.soft_empty_cache()
         return (outstack,)
     
 class ColorizeDepthmap:
@@ -616,6 +751,7 @@ class RemapDepth:
 NODE_CLASS_MAPPINGS = {
     "MarigoldDepthEstimation": MarigoldDepthEstimation,
     "MarigoldDepthEstimationVideo": MarigoldDepthEstimationVideo,
+    "MarigoldDepthEstimation_v2": MarigoldDepthEstimation_v2,
     "ColorizeDepthmap": ColorizeDepthmap,
     "SaveImageOpenEXR": SaveImageOpenEXR,
     "RemapDepth": RemapDepth
@@ -623,6 +759,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MarigoldDepthEstimation": "MarigoldDepthEstimation",
     "MarigoldDepthEstimationVideo": "MarigoldDepthEstimationVideo",
+    "MarigoldDepthEstimation_v2": "MarigoldDepthEstimation_v2",
     "ColorizeDepthmap": "ColorizeDepthmap",
     "SaveImageOpenEXR": "SaveImageOpenEXR",
     "RemapDepth": "RemapDepth"

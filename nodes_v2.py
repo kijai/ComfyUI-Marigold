@@ -40,6 +40,8 @@ Diffusion-based monocular depth estimation:
 https://github.com/prs-eth/Marigold  
   
 Uses Diffusers 0.28.0 Marigold pipelines.  
+Models are automatically downloaded to  
+ComfyUI/models/diffusers -folder
 """
 
     def load(self, model):
@@ -95,7 +97,7 @@ class MarigoldDepthEstimation_v2:
             }
     
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES =("ensembled_image",)
+    RETURN_NAMES =("image",)
     FUNCTION = "process"
     CATEGORY = "Marigold"
     DESCRIPTION = """
@@ -187,7 +189,7 @@ class MarigoldDepthEstimation_v2_video:
             }
     
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES =("ensembled_image",)
+    RETURN_NAMES =("image",)
     FUNCTION = "process"
     CATEGORY = "Marigold"
     DESCRIPTION = """
@@ -195,6 +197,8 @@ Diffusion-based monocular depth estimation:
 https://github.com/prs-eth/Marigold  
   
 Uses Diffusers 0.28.0 Marigold pipelines.  
+This node uses the previous frame as init latent to  
+smooth out the video.  
 """
 
     def process(self, marigold_model, images, seed, denoise_steps, processing_resolution, blend_factor, scheduler, use_taesd_vae):
@@ -230,12 +234,9 @@ Uses Diffusers 0.28.0 Marigold pipelines.
         last_frame_latent = None
         torch.manual_seed(seed)
         latent_common = torch.randn((1, 4, processing_resolution * size[1] // (8 * max(size)), processing_resolution * size[0] // (8 * max(size)))).to(device=device, dtype=torch.float16)
-        print("latent_common shape: ",latent_common.shape)
         pbar = comfy.utils.ProgressBar(B)
         processed_out = []
         for img in images:
-            
-            print(img.shape)
             latents = latent_common
             if last_frame_latent is not None:
                 latents = (1 - blend_factor) * latents + blend_factor * last_frame_latent
@@ -250,7 +251,6 @@ Uses Diffusers 0.28.0 Marigold pipelines.
                 **pipe_kwargs
                 )
             last_frame_latent = processed.latent
-            print("last frame latent shape: ",last_frame_latent.shape)
             pbar.update(1)
             if pred_type == "normals":
                 normals = pipeline.image_processor.visualize_normals(processed.prediction)

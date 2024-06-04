@@ -2,11 +2,6 @@ import os
 import torch
 import torchvision.transforms as transforms
 
-try:
-    from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline, AutoencoderTiny
-except:
-    MarigoldDepthPipeline = None
-
 from diffusers.schedulers import (
         DDIMScheduler,
         LCMScheduler
@@ -45,6 +40,11 @@ ComfyUI/models/diffusers -folder
 """
 
     def load(self, model):
+        try:
+            from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline
+        except:
+            raise Exception("diffusers==0.28 is required for v2 nodes")
+        
         device = model_management.get_torch_device()
         diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
         checkpoint_path = os.path.join(diffusers_model_path, model)
@@ -108,6 +108,10 @@ Uses Diffusers 0.28.0 Marigold pipelines.
 """
 
     def process(self, marigold_model, image, seed, denoise_steps, processing_resolution, ensemble_size, scheduler, use_taesd_vae):
+        try:
+            from diffusers import AutoencoderTiny
+        except:
+            raise Exception("diffusers==0.28 is required for v2 nodes")
         batch_size = image.shape[0]
         device = model_management.get_torch_device()
         torch.manual_seed(seed)
@@ -202,7 +206,10 @@ smooth out the video.
 """
 
     def process(self, marigold_model, images, seed, denoise_steps, processing_resolution, blend_factor, scheduler, use_taesd_vae):
-       
+        try:
+            from diffusers import AutoencoderTiny
+        except:
+            raise Exception("diffusers==0.28 is required for v2 nodes")
         device = model_management.get_torch_device()
         
         pipeline = marigold_model['pipeline']

@@ -363,7 +363,7 @@ for the ensembling process, generally do not touch.
                     except:
                         raise FileNotFoundError(f"No checkpoint directory found at {checkpoint_path}")
             
-            self.marigold_pipeline = MarigoldDepthPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
+            self.marigold_pipeline = MarigoldPipeline.from_pretrained(checkpoint_path, enable_xformers=False, empty_text_embed=empty_text_embed, noise_scheduler_type=scheduler)
             self.marigold_pipeline = self.marigold_pipeline.to(precision).to(device)
             self.marigold_pipeline.unet.eval()
         pbar = comfy.utils.ProgressBar(batch_size)

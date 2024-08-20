@@ -94,6 +94,9 @@ class MarigoldDepthEstimation_v2:
             }),
             "use_taesd_vae": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                "keep_model_loaded": ("BOOLEAN", {"default": False}),
+                }
             }
     
     RETURN_TYPES = ("IMAGE",)
@@ -107,13 +110,15 @@ https://github.com/prs-eth/Marigold
 Uses Diffusers 0.28.0 Marigold pipelines.  
 """
 
-    def process(self, marigold_model, image, seed, denoise_steps, processing_resolution, ensemble_size, scheduler, use_taesd_vae):
+    def process(self, marigold_model, image, seed, denoise_steps, processing_resolution, ensemble_size, scheduler, use_taesd_vae, keep_model_loaded=False):
         try:
             from diffusers import AutoencoderTiny
         except:
             raise Exception("diffusers==0.28 is required for v2 nodes")
         batch_size = image.shape[0]
         device = model_management.get_torch_device()
+        offload_device = model_management.unet_offload_device()
+        intermediate_device = model_management.intermediate_device()
         torch.manual_seed(seed)
 
         image = image.permute(0, 3, 1, 2).to(device)
@@ -143,7 +148,9 @@ Uses Diffusers 0.28.0 Marigold pipelines.
 
         generator = torch.Generator(device).manual_seed(seed)
 
-        processed_out = []
+        processed_out_list = []
+
+        pipeline.to(device)
 
         for i in range(batch_size):
             processed = pipeline(
@@ -158,19 +165,22 @@ Uses Diffusers 0.28.0 Marigold pipelines.
             if pred_type == "normals":
                 normals = pipeline.image_processor.visualize_normals(processed.prediction)
                 normals_tensor = transforms.ToTensor()(normals[0])
-                processed_out.append(normals_tensor)
+                processed_out_list.append(normals_tensor)
             else:
-                processed_out.append(processed[0])
+                processed_out_list.append(processed[0])
+        if not keep_model_loaded:
+            pipeline.to(offload_device)
+            model_management.soft_empty_cache()
         
         if pred_type == "normals":
-            processed_out = torch.stack(processed_out, dim=0)
-            processed_out = processed_out.permute(0, 2, 3, 1).cpu().float()
+            processed_out = torch.stack(processed_out_list, dim=0)
+            processed_out = processed_out.permute(0, 2, 3, 1)
         else:
-            processed_out = torch.cat(processed_out, dim=0)
-            processed_out = processed_out.permute(0, 2, 3, 1).repeat(1, 1, 1, 3).cpu().float()
+            processed_out = torch.cat(processed_out_list, dim=0)
+            processed_out = processed_out.permute(0, 2, 3, 1).repeat(1, 1, 1, 3)
             processed_out = 1.0 - processed_out
 
-        return (processed_out,)
+        return (processed_out.to(intermediate_device).float(),)
 
 class MarigoldDepthEstimation_v2_video:
     @classmethod
@@ -190,6 +200,9 @@ class MarigoldDepthEstimation_v2_video:
             "blend_factor": ("FLOAT", {"default": 0.1,"min": 0.0, "max": 1.0, "step": 0.01}),
             "use_taesd_vae": ("BOOLEAN", {"default": True}),
             },
+            "optional": {
+                "keep_model_loaded": ("BOOLEAN", {"default": False}),
+                }
             }
     
     RETURN_TYPES = ("IMAGE",)
@@ -205,12 +218,14 @@ This node uses the previous frame as init latent to
 smooth out the video.  
 """
 
-    def process(self, marigold_model, images, seed, denoise_steps, processing_resolution, blend_factor, scheduler, use_taesd_vae):
+    def process(self, marigold_model, images, seed, denoise_steps, processing_resolution, blend_factor, scheduler, use_taesd_vae, keep_model_loaded=False):
         try:
             from diffusers import AutoencoderTiny
         except:
             raise Exception("diffusers==0.28 is required for v2 nodes")
         device = model_management.get_torch_device()
+        offload_device = model_management.unet_offload_device()
+        intermediate_device = model_management.intermediate_device()
         
         pipeline = marigold_model['pipeline']
         pred_type = marigold_model['modeltype']
@@ -242,6 +257,9 @@ smooth out the video.
         torch.manual_seed(seed)
         latent_common = torch.randn((1, 4, processing_resolution * size[1] // (8 * max(size)), processing_resolution * size[0] // (8 * max(size)))).to(device=device, dtype=torch.float16)
         pbar = comfy.utils.ProgressBar(B)
+
+        pipeline.to(device)
+
         processed_out = []
         for img in images:
             latents = latent_common
@@ -265,16 +283,20 @@ smooth out the video.
                 processed_out.append(normals_tensor)
             else:
                 processed_out.append(processed[0])
+
+        if not keep_model_loaded:
+            pipeline.to(offload_device)
+            model_management.soft_empty_cache()
         
         if pred_type == "normals":
             processed_out = torch.stack(processed_out, dim=0)
-            processed_out = processed_out.permute(0, 2, 3, 1).cpu().float()
+            processed_out = processed_out.permute(0, 2, 3, 1)
         else:
             processed_out = torch.cat(processed_out, dim=0)
-            processed_out = processed_out.permute(0, 2, 3, 1).repeat(1, 1, 1, 3).cpu().float()
+            processed_out = processed_out.permute(0, 2, 3, 1).repeat(1, 1, 1, 3)
             processed_out = 1.0 - processed_out
 
-        return (processed_out,)
+        return (processed_out.to(intermediate_device).float(),)
     
 NODE_CLASS_MAPPINGS = {
     "MarigoldModelLoader": MarigoldModelLoader,

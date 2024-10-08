@@ -16,10 +16,14 @@ class MarigoldModelLoader:
     def INPUT_TYPES(s):
         return {"required": {            
             "model": (
-            ['marigold-v1-0',
-             'marigold-lcm-v1-0',
-             'marigold-normals-v0-1',
-             'marigold-normals-lcm-v0-1',], 
+            [
+                'prs-eth/marigold-v1-0',
+                'prs-eth/marigold-lcm-v1-0',
+                'prs-eth/marigold-normals-v0-1',
+                'prs-eth/marigold-normals-lcm-v0-1',
+                'GonzaloMG/marigold-e2e-ft-depth',
+                'GonzaloMG/marigold-e2e-ft-normals'
+            ], 
             {
                "default": 'marigold-lcm-v1-0'
             }),
@@ -43,7 +47,7 @@ ComfyUI/models/diffusers -folder
         try:
             from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline
         except:
-            raise Exception("diffusers==0.28 is required for v2 nodes")
+            raise Exception("diffusers>=0.28 is required for v2 nodes")
         
         device = model_management.get_torch_device()
         diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
@@ -52,7 +56,7 @@ ComfyUI/models/diffusers -folder
         if not os.path.exists(checkpoint_path):
             print(f"Selected model: {checkpoint_path} not found, downloading...")
             from huggingface_hub import snapshot_download
-            snapshot_download(repo_id=f"prs-eth/{model}", 
+            snapshot_download(repo_id=model, 
                                 allow_patterns=["*.json", "*.txt","*fp16*"],
                                 ignore_patterns=["*.bin"],
                                 local_dir=checkpoint_path, 

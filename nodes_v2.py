@@ -18,7 +18,7 @@ class MarigoldModelLoader:
             "model": (
             [
                 'prs-eth/marigold-v1-0',
-                'prs-eth/marigold-lcm-v1-0',
+                'prs-eth/marigold-depth-lcm-v1-0',
                 'prs-eth/marigold-normals-v0-1',
                 'prs-eth/marigold-normals-lcm-v0-1',
                 'GonzaloMG/marigold-e2e-ft-depth',

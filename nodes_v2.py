@@ -45,6 +45,7 @@ ComfyUI/models/diffusers -folder
 
     def load(self, model):
         try:
+            
             from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline
         except:
             raise Exception("diffusers>=0.28 is required for v2 nodes")
@@ -52,14 +53,16 @@ ComfyUI/models/diffusers -folder
         device = model_management.get_torch_device()
         diffusers_model_path = os.path.join(folder_paths.models_dir,'diffusers')
         checkpoint_path = os.path.join(diffusers_model_path, model.split("/")[-1])
+        if "GonzaloMG" in model:
+                allow_patterns=None
+                variant=None
+        else:
+            allow_patterns=["*.json", "*.txt","*fp16*"]
+            variant="fp16"
 
         if not os.path.exists(checkpoint_path):
             print(f"Selected model: {checkpoint_path} not found, downloading...")
             from huggingface_hub import snapshot_download
-            if "GonzaloMG" in model:
-                allow_patterns=None
-            else:
-                allow_patterns=["*.json", "*.txt","*fp16*"]
             snapshot_download(repo_id=model, 
                                 allow_patterns=allow_patterns,
                                 ignore_patterns=["*.bin"],
@@ -70,13 +73,13 @@ ComfyUI/models/diffusers -folder
             modeltype = "normals"
             self.marigold_pipeline = MarigoldNormalsPipeline.from_pretrained(
             checkpoint_path, 
-            variant="fp16", 
+            variant=variant, 
             torch_dtype=torch.float16).to(device)
         else:
             modeltype = "depth"
             self.marigold_pipeline = MarigoldDepthPipeline.from_pretrained(
             checkpoint_path, 
-            variant="fp16", 
+            variant=variant, 
             torch_dtype=torch.float16).to(device)
 
         marigold_model = {

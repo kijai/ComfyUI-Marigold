@@ -19,10 +19,14 @@ class MarigoldModelLoader:
             [
                 'prs-eth/marigold-v1-0',
                 'prs-eth/marigold-depth-lcm-v1-0',
+                'prs-eth/marigold-depth-v1-1',
                 'prs-eth/marigold-normals-v0-1',
                 'prs-eth/marigold-normals-lcm-v0-1',
+                'prs-eth/marigold-normals-v1-1',
                 'GonzaloMG/marigold-e2e-ft-depth',
-                'GonzaloMG/marigold-e2e-ft-normals'
+                'GonzaloMG/marigold-e2e-ft-normals',
+                'prs-eth/marigold-iid-lighting-v1-1',
+                'prs-eth/marigold-iid-appearance-v1-1'
             ], 
             {
                "default": 'marigold-lcm-v1-0'
@@ -46,7 +50,7 @@ ComfyUI/models/diffusers -folder
     def load(self, model):
         try:
             
-            from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline
+            from diffusers import MarigoldDepthPipeline, MarigoldNormalsPipeline, MarigoldIntrinsicsPipeline
         except:
             raise Exception("diffusers>=0.28 is required for v2 nodes")
         
@@ -72,6 +76,12 @@ ComfyUI/models/diffusers -folder
         if "normals" in model:
             modeltype = "normals"
             self.marigold_pipeline = MarigoldNormalsPipeline.from_pretrained(
+            checkpoint_path, 
+            variant=variant, 
+            torch_dtype=torch.float16).to(device)
+        elif "iid" in model:
+            modeltype = "intrinsics"
+            self.marigold_pipeline = MarigoldIntrinsicsPipeline.from_pretrained(
             checkpoint_path, 
             variant=variant, 
             torch_dtype=torch.float16).to(device)
@@ -171,6 +181,7 @@ Uses Diffusers 0.28.0 Marigold pipelines.
                 processing_resolution = processing_resolution,
                 **pipe_kwargs
                 )
+            #print("processed", processed[0].shape)
             
             pbar.update(1)
             if pred_type == "normals":
@@ -185,6 +196,9 @@ Uses Diffusers 0.28.0 Marigold pipelines.
         
         if pred_type == "normals":
             processed_out = torch.stack(processed_out_list, dim=0)
+            processed_out = processed_out.permute(0, 2, 3, 1)
+        elif pred_type == "intrinsics":
+            processed_out = torch.cat(processed_out_list, dim=0)
             processed_out = processed_out.permute(0, 2, 3, 1)
         else:
             processed_out = torch.cat(processed_out_list, dim=0)
